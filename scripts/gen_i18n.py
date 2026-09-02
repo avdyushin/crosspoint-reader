@@ -253,7 +253,7 @@ def load_translations(
 # Unused-string detection
 # ---------------------------------------------------------------------------
 
-_GENERATED_FILENAMES: Set[str] = {"I18nKeys.h", "I18nStrings.h", "I18nStrings.cpp"}
+_GENERATED_FILENAMES: Set[str] = {"I18nKeys.h", "I18nStrings.h", "I18nStrings.cpp", "sqlite3.c"}
 
 
 def find_used_string_keys(
