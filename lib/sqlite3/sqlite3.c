@@ -28,6 +28,10 @@
 #ifndef SQLITE_PRIVATE
 #define SQLITE_PRIVATE static
 #endif
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wdiscarded-qualifiers"
+
 /************** Begin file sqliteInt.h ***************************************/
 /*
 ** 2001 September 15
@@ -15357,6 +15361,13 @@ SQLITE_PRIVATE void sqlite3HashClear(Hash*);
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
+#include <stddef.h>
+
+#ifdef NDEBUG
+#undef assert
+#define assert(e) (1==1)
+#endif
 
 /*
 ** Use a macro to replace memcpy() if compiled with SQLITE_INLINE_MEMCPY.
@@ -261605,3 +261616,5 @@ SQLITE_API int sqlite3_stmt_init(sqlite3* db, char** pzErrMsg, const sqlite3_api
 SQLITE_API const char* sqlite3_sourceid(void) { return SQLITE_SOURCE_ID; }
 #endif /* SQLITE_AMALGAMATION */
 /************************** End of sqlite3.c ******************************/
+
+#pragma GCC diagnostic pop
