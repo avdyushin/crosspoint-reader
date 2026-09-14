@@ -13,17 +13,20 @@ class Connection {
   std::unique_ptr<sqlite3, decltype(&sqlite3_close)> connection{nullptr, sqlite3_close};
 
  public:
-  void open(const std::filesystem::path& path) {
+  bool open(const std::filesystem::path& path) {
     sqlite3* db = nullptr;
     if (sqlite3_initialize() != SQLITE_OK) {
-      throw std::runtime_error(sqlite3_errmsg(db));
+      return false;
     }
     if (sqlite3_open(path.c_str(), &db) != SQLITE_OK) {
-      throw std::runtime_error(sqlite3_errmsg(db));
+      return false;
     }
     connection.reset(db);
+    return true;
   }
 
   [[nodiscard]] sqlite3* get() const { return connection.get(); }
+
+  [[nodiscard]] bool isOpen() const { return connection != nullptr; }
 };
 }  // namespace BibleToolbox

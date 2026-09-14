@@ -310,13 +310,14 @@ bool BibleActivity::loadBook() {
   const auto config = BibleConfigStore::getInstance().config;
 
   std::string filename;
-  if (config.module.empty()) {
-    if (auto const files = Storage.listFiles(databasePath.c_str()); !files.empty()) {
-      filename = files.front();
-    }
-  } else {
-    filename = config.module;
-  }
+  // if (config.module.empty()) {
+  //   if (auto const files = Storage.listFiles(databasePath.c_str()); !files.empty()) {
+  //     filename = files[0];
+  //   }
+  // } else {
+  //   filename = config.module;
+  // }
+  filename = config.module;
 
   if (filename.empty()) {
     LOG_INF(MODULE_TAG, "No Bible module find");
@@ -324,16 +325,18 @@ bool BibleActivity::loadBook() {
     return false;
   }
 
-  try {
-    const auto modulePath = databasePath / filename;
-    bible_ = std::make_unique<BibleToolbox::Bible>(modulePath);
-    BibleConfigStore::getInstance().config.module = modulePath;  // Save loaded module
-  } catch (const std::exception& e) {
-    LOG_INF(MODULE_TAG, "Could create bible instance: %s", e.what());
+  // try {
+  const auto modulePath = databasePath / filename;
+  bible_ = std::make_unique<BibleToolbox::Bible>(modulePath);
+  BibleConfigStore::getInstance().config.module = modulePath;  // Save loaded module
+  // } catch (const std::exception& e) {
+  if (bible_->books().empty()) {
+    LOG_INF(MODULE_TAG, "Could create bible instance");
     BibleConfigStore::getInstance().config.clear();  // Reset unloadable module
 
     return false;
   }
+  // }
 
   LOG_INF(MODULE_TAG, "Loading config data, book %d, chapter %d and page %d", config.bookIndex, config.chapterNumber,
           config.pageNumber);

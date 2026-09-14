@@ -8,12 +8,13 @@ class Statement {
   std::unique_ptr<sqlite3_stmt, decltype(&sqlite3_finalize)> statement{nullptr, sqlite3_finalize};
 
  public:
-  void prepare(sqlite3* db, const std::string_view sql) {
+  bool prepare(sqlite3* db, const std::string_view sql) {
     sqlite3_stmt* stmt = nullptr;
     if (sqlite3_prepare_v2(db, sql.data(), -1, &stmt, nullptr) != SQLITE_OK) {
-      throw std::runtime_error(sqlite3_errmsg(db));
+      return false;
     }
     statement.reset(stmt);
+    return true;
   }
 
   [[nodiscard]] int step() const { return sqlite3_step(statement.get()); }
@@ -24,15 +25,18 @@ class Statement {
   }
 
   template <typename T>
-  void bind(const int column, const T& value) const {
+  bool bind(const int column, const T& value) const {
     if constexpr (std::is_integral_v<T> && sizeof(T) <= 4) {
       if (sqlite3_bind_int(statement.get(), column, value) != SQLITE_OK) {
-        throw std::runtime_error(sqlite3_errmsg(sqlite3_db_handle(statement.get())));
+        return false;
       }
     } else {
-      throw std::runtime_error("Unsupported bind type");
+      return false;
     }
+    return true;
   }
+
+  [[nodiscard]] bool isReady() const { return statement != nullptr; }
 
   [[nodiscard]] std::string_view get_string_view(const int column) const {
     const auto* text = reinterpret_cast<const char*>(sqlite3_column_text(statement.get(), column));

@@ -1,4 +1,9 @@
 #pragma once
+
+#include <algorithm>
+#include <functional>
+#include <variant>
+
 #include "BibleToolbox.h"
 
 class BibleChapterNavigator {

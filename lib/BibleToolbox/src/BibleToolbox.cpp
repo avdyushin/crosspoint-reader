@@ -1,5 +1,6 @@
 #include "BibleToolbox.h"
 
+#include <algorithm>
 #include <ranges>
 #include <string_view>
 
@@ -73,11 +74,13 @@ void process_verse_text_in_place(std::string& text, const bool exclude_strong_nu
 
 namespace BibleToolbox {
 Bible::Bible(const std::filesystem::path& path) {
-  connection_.open(path);
-  constexpr auto verses_by_chapter = "SELECT verse, text FROM verses WHERE book_number = ? AND chapter = ?;";
-  chapterStatement_.prepare(connection_.get(), verses_by_chapter);
-  module_ = fetchInfo(path);
-  books_ = fetchBooks();
+  if (connection_.open(path)) {
+    constexpr auto verses_by_chapter = "SELECT verse, text FROM verses WHERE book_number = ? AND chapter = ?;";
+    if (chapterStatement_.prepare(connection_.get(), verses_by_chapter)) {
+      module_ = fetchInfo(path);
+      books_ = fetchBooks();
+    }
+  }
 }
 
 const Book* Bible::operator[](const bookNumber number) const {
@@ -160,8 +163,8 @@ std::vector<Verse> Bible::chapterVerses(const bookNumber book, const chapterNumb
                                         const bool excludeStrongsNumbers = true) const {
   std::vector<Verse> verses;
   chapterStatement_.reset();
-  chapterStatement_.bind(1, book);
-  chapterStatement_.bind(2, chapter);
+  auto _ = chapterStatement_.bind(1, book);
+  auto _ = chapterStatement_.bind(2, chapter);
   auto transform = [excludeStrongsNumbers](const std::string_view text) {
     std::string result{text};
     process_verse_text_in_place(result, excludeStrongsNumbers);
