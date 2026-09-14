@@ -15,6 +15,13 @@ class BibleConfigStore : public PersistableStore<BibleConfigStore> {
     int bookIndex;
     int chapterNumber;
     int pageNumber;
+
+    void clear() {
+      module.clear();
+      bookIndex = 0;
+      chapterNumber = 1;
+      pageNumber = 0;
+    }
   };
 
   Config config{};
@@ -30,7 +37,7 @@ class BibleConfigStore : public PersistableStore<BibleConfigStore> {
     doc["pageNumber"] = config.pageNumber;
   }
 
-  bool fromJson(JsonVariantConst doc) {
+  bool fromJson(const JsonVariantConst doc) {
     std::lock_guard lock(configMutex);
     config.version = doc["version"] | CONFIG_VERSION;
     config.module = doc["module"] | "";

@@ -3,10 +3,16 @@
 #include <filesystem>
 
 #include "BibleChapterNavigator.h"
+#include "BibleChapterSelectionActivity.h"
+#include "BibleMenuActivity.h"
 #include "BibleToolbox.h"
 #include "Epub/Page.h"
 #include "activities/Activity.h"
 #include "activities/reader/ReaderActivity.h"
+
+namespace BibleContext {
+inline std::atomic<BibleToolbox::Bible*> activeBible{nullptr};
+}
 
 class BibleActivity final : public ReaderActivity {
  public:
@@ -38,6 +44,7 @@ class BibleActivity final : public ReaderActivity {
   std::unique_ptr<BibleToolbox::Bible> bible_;
   BibleChapterNavigator chapterNavigator_{};
   std::string title_;
+  std::vector<BibleChapterInfo> chapterListCache_;
 
  protected:
   bool loadBook() override;
@@ -51,11 +58,13 @@ class BibleActivity final : public ReaderActivity {
   bool layout(const std::filesystem::path& cachePath, BibleChapterNavigator::NavDirection direction);
   void renderStatusBar() const;
   bool loadChapter(bool clearCache, BibleChapterNavigator::NavDirection direction);
+  void handleMenuAction(BibleMenuActivity::MenuItem menuItem);
 
  public:
   BibleActivity(const char* name, GfxRenderer& renderer, MappedInputManager& mappedInput);
   ~BibleActivity() override = default;
 
+  void loop() override;
   void onEnter() override;
   void onExit() override;
 };

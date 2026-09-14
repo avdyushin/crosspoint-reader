@@ -162,7 +162,7 @@ std::vector<Verse> Bible::chapterVerses(const bookNumber book, const chapterNumb
   chapterStatement_.reset();
   chapterStatement_.bind(1, book);
   chapterStatement_.bind(2, chapter);
-  auto transform = [excludeStrongsNumbers](std::string_view text) {
+  auto transform = [excludeStrongsNumbers](const std::string_view text) {
     std::string result{text};
     process_verse_text_in_place(result, excludeStrongsNumbers);
     return result;

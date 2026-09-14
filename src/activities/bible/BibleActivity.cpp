@@ -1,13 +1,16 @@
 #include "BibleActivity.h"
 
 #include <BibleToolbox.h>
-#include <I18n.h>
 #include <sys/stat.h>
 
 #include <filesystem>
+#include <ranges>
 
 #include "../reader/ReaderUtils.h"
+#include "BibleBookSelectionActivity.h"
+#include "BibleChapterSelectionActivity.h"
 #include "BibleConfigStore.h"
+#include "BibleMenuActivity.h"
 #include "BufferedFile.h"
 #include "BufferedFileWriterIterator.h"
 #include "Epub/Page.h"
@@ -134,6 +137,87 @@ void BibleActivity::onExit() {
   BibleConfigStore::getInstance().config.chapterNumber = chapterNavigator_.inBookChapter;
   BibleConfigStore::getInstance().config.pageNumber = chapterNavigator_.currentPage;
   auto _ = BibleConfigStore::getInstance().saveToFile();
+  BibleContext::activeBible.store(nullptr, std::memory_order_release);
+}
+
+void BibleActivity::loop() {
+  ReaderActivity::loop();
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    auto menu = std::make_unique<BibleMenuActivity>(
+        renderer, mappedInput, bible_->id(), chapterNavigator_.currentBook()->name, chapterNavigator_.inBookChapter);
+    auto handler = [this](const ActivityResult& result) {
+      const auto& menuResult = std::get<MenuResult>(result.data);
+      if (!result.isCancelled) {
+        handleMenuAction(static_cast<BibleMenuActivity::MenuItem>(menuResult.action));
+      }
+      requestUpdate();
+    };
+    startActivityForResult(std::move(menu), handler);
+  }
+}
+
+void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem) {
+  switch (menuItem) {
+    case BibleMenuActivity::MODULE:
+      LOG_INF(MODULE_TAG, "Module activated");
+      break;
+    case BibleMenuActivity::BOOK: {
+      LOG_INF(MODULE_TAG, "Book activated");
+      auto menu = std::make_unique<BibleBookSelectionActivity>(renderer, mappedInput, "Select Book", bible_->books(),
+                                                               chapterNavigator_.currentBookIndex);
+      auto handler = [this](const ActivityResult& result) {
+        const auto& menuResult = std::get<MenuResult>(result.data);
+        if (!result.isCancelled) {
+          LOG_INF(MODULE_TAG, "Selected Book index = %d", menuResult.action);
+          if (const auto targetBookIndex = menuResult.action; targetBookIndex >= 0 &&
+                                                              targetBookIndex < chapterNavigator_.books.size() &&
+                                                              targetBookIndex != chapterNavigator_.currentBookIndex) {
+            chapterNavigator_.currentBookIndex = targetBookIndex;
+            chapterNavigator_.inBookChapter = BibleChapterNavigator::START_CHAPTER_NUMBER;
+            chapterNavigator_.currentPage = 0;
+            loadChapter(true, BibleChapterNavigator::NavFirstPage{});
+          } else {
+            LOG_INF(MODULE_TAG, "Same book selected or out of range: %d", targetBookIndex);
+          }
+        }
+        requestUpdate();
+      };
+      startActivityForResult(std::move(menu), handler);
+      break;
+    }
+    case BibleMenuActivity::CHAPTER:
+      const auto totalChapters = chapterNavigator_.currentBook()->chaptersCount;
+      const auto chapterString = bible_->chapterString();
+      chapterListCache_.clear();
+      chapterListCache_.reserve(totalChapters);
+      LOG_INF(MODULE_TAG, "Chapter activated, total chapters: %d", totalChapters);
+      auto chapterView = std::views::iota(BibleChapterNavigator::START_CHAPTER_NUMBER, totalChapters + 1) |
+                         std::views::transform([chapterString](const int i) {
+                           return BibleChapterInfo{.name = std::string(chapterString) + " " + std::to_string(i)};
+                         });
+      std::ranges::copy(chapterView, std::back_inserter(chapterListCache_));
+      auto menu = std::make_unique<BibleChapterSelectionActivity>(
+          renderer, mappedInput, "Select Chapter", chapterListCache_, chapterNavigator_.currentBookIndex);
+      auto handler = [this, totalChapters](const ActivityResult& result) {
+        const auto& menuResult = std::get<MenuResult>(result.data);
+        if (!result.isCancelled) {
+          LOG_INF(MODULE_TAG, "Selected Chapter number = %d", menuResult.action);
+          if (const auto targetChapterNumber = menuResult.action + BibleChapterNavigator::START_CHAPTER_NUMBER;
+              targetChapterNumber >= BibleChapterNavigator::START_CHAPTER_NUMBER &&
+              targetChapterNumber <= totalChapters && targetChapterNumber != chapterNavigator_.inBookChapter) {
+            chapterNavigator_.inBookChapter = targetChapterNumber;
+            chapterNavigator_.currentPage = 0;
+            loadChapter(true, BibleChapterNavigator::NavFirstPage{});
+          } else {
+            LOG_INF(MODULE_TAG, "Same chapter selected or out of range: %d", targetChapterNumber);
+          }
+        }
+        requestUpdate();
+      };
+      startActivityForResult(std::move(menu), handler);
+      break;
+  }
 }
 
 void BibleActivity::drawVerses(const int font_id, const int x, const int y) const {
@@ -167,7 +251,7 @@ bool BibleActivity::layout(const std::filesystem::path& cachePath, BibleChapterN
 
 bool BibleActivity::isAtEndOfBook() const { return false; }
 
-bool BibleActivity::loadChapter(const bool clearCache, BibleChapterNavigator::NavDirection direction) {
+bool BibleActivity::loadChapter(const bool clearCache, const BibleChapterNavigator::NavDirection direction) {
   title_.clear();
   std::format_to(std::back_inserter(title_), "{} {}", chapterNavigator_.currentBook()->name,
                  chapterNavigator_.inBookChapter);
@@ -215,10 +299,12 @@ bool BibleActivity::loadBook() {
 
   try {
     bible_ = std::make_unique<BibleToolbox::Bible>(database_path / filename);
+    BibleContext::activeBible.store(bible_.get(), std::memory_order_release);
     BibleConfigStore::getInstance().config.module = bible_->id();  // Save loaded module
   } catch (const std::exception& e) {
     LOG_INF(MODULE_TAG, "Could create bible instance: %s", e.what());
-    BibleConfigStore::getInstance().config.module.clear();  // Reset unloadable module
+    BibleContext::activeBible.store(nullptr, std::memory_order_release);
+    BibleConfigStore::getInstance().config.clear();  // Reset unloadable module
     return false;
   }
 
