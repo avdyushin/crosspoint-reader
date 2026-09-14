@@ -3,6 +3,8 @@
 
 class BibleChapterNavigator {
  public:
+  static constexpr int START_CHAPTER_NUMBER = 1;
+
   struct NavFirstPage {};
   struct NavLastPage {};
   struct NavTargetPage {
@@ -13,7 +15,7 @@ class BibleChapterNavigator {
 
   int totalPages = 0;
   int currentPage = 0;
-  int inBookChapter = 1;
+  int inBookChapter = START_CHAPTER_NUMBER;
   int currentBookIndex = 10;
   std::span<const BibleToolbox::Book> books;
   std::function<void(int, int, NavDirection)> onChapterChanged;
@@ -61,18 +63,18 @@ class BibleChapterNavigator {
 
  private:
   void checkNextChapter() {
-    if (inBookChapter + 1 < totalChaptersInBook()) {
+    if (inBookChapter + 1 <= totalChaptersInBook()) {
       inBookChapter++;
       onChapterChanged(currentBookIndex, inBookChapter, NavFirstPage{});
     } else if (currentBookIndex + 1 < books.size()) {
       currentBookIndex++;
-      inBookChapter = 1;
+      inBookChapter = START_CHAPTER_NUMBER;
       onChapterChanged(currentBookIndex, inBookChapter, NavFirstPage{});
     }
   }
 
   void checkPreviousChapter() {
-    if (inBookChapter > 1) {
+    if (inBookChapter > START_CHAPTER_NUMBER) {
       inBookChapter--;
       onChapterChanged(currentBookIndex, inBookChapter, NavLastPage{});
     } else if (currentBookIndex > 0) {
