@@ -10,10 +10,6 @@
 #include "activities/Activity.h"
 #include "activities/reader/ReaderActivity.h"
 
-namespace BibleContext {
-inline std::atomic<BibleToolbox::Bible*> activeBible{nullptr};
-}
-
 class BibleActivity final : public ReaderActivity {
  public:
   struct Config {
@@ -45,6 +41,7 @@ class BibleActivity final : public ReaderActivity {
   BibleChapterNavigator chapterNavigator_{};
   std::string title_;
   std::vector<BibleChapterInfo> chapterListCache_;
+  const std::filesystem::path databasePath;
 
  protected:
   bool loadBook() override;

@@ -9,7 +9,7 @@
 class FileBrowserActivity final : public UiListActivity {
  public:
   // Books = standard reader browser; PickFirmware = filter to .bin only and return path via ActivityResult.
-  enum class Mode { Books, PickFirmware };
+  enum class Mode { Books, Bibles, PickFirmware };
 
  private:
   // Deletion
