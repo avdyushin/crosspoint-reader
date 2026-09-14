@@ -104,6 +104,7 @@ const Book* Bible::operator[](const std::string_view name) const {
                     FROM verses
                     WHERE verses.book_number = books.book_number)
                 FROM books
+                ORDER BY book_number
             )SQL";
   auto statement = Statement();
   statement.prepare(connection_.get(), query);
