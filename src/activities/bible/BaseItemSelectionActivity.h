@@ -37,4 +37,6 @@ class BaseItemSelectionActivity : public UiListActivity {
         items_(items),
         currentItemIndex_(currentItemIndex),
         title_(title) {}
+
+  void onEnter() override;
 };

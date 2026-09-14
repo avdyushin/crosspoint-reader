@@ -5,6 +5,13 @@
 #include "components/UITheme.h"
 
 template <HasName Item>
+void BaseItemSelectionActivity<Item>::onEnter() {
+  UiListActivity::onEnter();
+
+  nav.selected = currentItemIndex_;
+}
+
+template <HasName Item>
 void BaseItemSelectionActivity<Item>::refreshWindow(const int start) {
   const int total = listCount();
   const int maxStart = std::max(0, total - WINDOW_SIZE);

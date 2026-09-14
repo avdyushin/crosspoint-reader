@@ -198,7 +198,8 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
                          });
       std::ranges::copy(chapterView, std::back_inserter(chapterListCache_));
       auto menu = std::make_unique<BibleChapterSelectionActivity>(
-          renderer, mappedInput, "Select Chapter", chapterListCache_, chapterNavigator_.currentBookIndex);
+          renderer, mappedInput, "Select Chapter", chapterListCache_,
+          chapterNavigator_.inBookChapter - BibleChapterNavigator::START_CHAPTER_NUMBER);
       auto handler = [this, totalChapters](const ActivityResult& result) {
         const auto& menuResult = std::get<MenuResult>(result.data);
         if (!result.isCancelled) {
