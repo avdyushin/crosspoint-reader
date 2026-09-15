@@ -33,7 +33,7 @@ constexpr size_t MAX_STYLED_PAGE_ELEMENTS = 1024;
 constexpr size_t MAX_STYLED_PAGES = 256;
 constexpr size_t IO_BUFFER_SIZE = 4096;  // 4k in sync with BUILD_IO_BUFFER_SIZE
 
-bool buildPages(GfxRenderer& renderer, const std::filesystem::path& path, const BibleActivity::Config& config,
+bool buildPages(GfxRenderer& renderer, const std::filesystem::path& path, const ReaderRenderSpec& spec,
                 std::vector<std::unique_ptr<Page>>& pages) {
   if (ESP.getFreeHeap() < MIN_STYLED_FREE_HEAP || ESP.getMaxAllocHeap() < MIN_STYLED_MAX_ALLOC) {
     LOG_ERR(MODULE_TAG, "Low heap for styled chapter (%u free, %u max block)", ESP.getFreeHeap(),
@@ -77,9 +77,9 @@ bool buildPages(GfxRenderer& renderer, const std::filesystem::path& path, const 
     };
     const auto pathString = path.string();
     const auto parser = makeUniqueNoThrow<ChapterHtmlSlimParser>(
-        nullptr, pathString, renderer, config.fontId, config.lineCompression, config.extraParagraphSpacing,
-        config.paragraphAlignment, config.viewportWidth, config.viewportHeight, config.hyphenationEnabled,
-        config.focusReadingEnabled, page_func, embedded_style, content_base, image_base, image_rendering);
+        nullptr, pathString, renderer, spec.fontId, spec.lineCompression, spec.extraParagraphSpacing,
+        spec.paragraphAlignment, spec.viewportWidth, spec.viewportHeight, spec.hyphenationEnabled,
+        spec.focusReadingEnabled, page_func, embedded_style, content_base, image_base, image_rendering);
 
     if (!parser) {
       LOG_ERR(MODULE_TAG, "Out of memory!");
@@ -126,17 +126,10 @@ void BibleActivity::onEnter() {
 
   LOG_INF(MODULE_TAG, "Opened");
 
-  config_ = Config{
-      .fontId = SETTINGS.getReaderFontId(),
-      .lineCompression = SETTINGS.getReaderLineCompression(),
-      .extraParagraphSpacing = SETTINGS.extraParagraphSpacing,
-      .marginLeft = SETTINGS.screenMargin,
-      .marginTop = SETTINGS.screenMargin,
-      .marginRight = SETTINGS.screenMargin,
-      .marginBottom = SETTINGS.screenMargin,
-      .viewportWidth = renderer.getScreenWidth() - SETTINGS.screenMargin * 2,
-      .viewportHeight = renderer.getScreenHeight() - SETTINGS.screenMargin * 2,
-  };
+  const auto viewportWidth = renderer.getScreenWidth() - SETTINGS.screenMargin * 2;
+  const auto viewportHeight = renderer.getScreenHeight() - SETTINGS.screenMargin * 2;
+
+  renderSpec_ = SETTINGS.readerRenderSpec(viewportWidth, viewportHeight);
 
   if (!BibleConfigStore::getInstance().loadFromFile()) {
     LOG_INF(MODULE_TAG, "Could not load configuration file");
@@ -268,7 +261,7 @@ void BibleActivity::renderStatusBar() const {
 }
 
 bool BibleActivity::layout(const std::filesystem::path& cachePath, BibleChapterNavigator::NavDirection direction) {
-  buildPages(renderer, cachePath, config_, pages_);
+  buildPages(renderer, cachePath, renderSpec_, pages_);
   chapterNavigator_.totalPages = static_cast<int>(pages_.size());
   if (pages_.empty()) {
     return false;
@@ -375,9 +368,9 @@ void BibleActivity::renderBook() {
   renderer.clearScreen();
 
   auto renderVerses = [&] {
-    const int font_id = config_.fontId;
-    const int x = config_.marginLeft;
-    const int y = config_.marginTop;
+    const int font_id = renderSpec_.fontId;
+    const int x = SETTINGS.screenMargin;
+    const int y = x;
     drawVerses(font_id, x, y);
   };
 

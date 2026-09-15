@@ -7,36 +7,13 @@
 #include "BibleMenuActivity.h"
 #include "BibleToolbox.h"
 #include "Epub/Page.h"
+#include "Epub/ReaderRenderSpec.h"
 #include "activities/Activity.h"
 #include "activities/reader/ReaderActivity.h"
 
 class BibleActivity final : public ReaderActivity {
- public:
-  struct Config {
-    int fontId;
-    float lineCompression;
-    uint16_t paragraphAlignment;
-    uint16_t extraParagraphSpacing;
-    uint8_t marginLeft;
-    uint8_t marginTop;
-    uint8_t marginRight;
-    uint8_t marginBottom;
-    int viewportWidth;
-    int viewportHeight;
-    uint8_t hyphenationEnabled;
-    uint8_t focusReadingEnabled;
-  };
-
- private:
-  struct SaveState {
-    std::string module;
-    int bookIndex;
-    int chapterNumber;
-    int pageNumber;
-  };
-
   std::vector<std::unique_ptr<Page>> pages_;
-  Config config_{};
+  ReaderRenderSpec renderSpec_{};
   std::unique_ptr<BibleToolbox::Bible> bible_;
   BibleChapterNavigator chapterNavigator_{};
   std::string title_;
