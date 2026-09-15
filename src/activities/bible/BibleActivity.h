@@ -41,7 +41,7 @@ class BibleActivity final : public ReaderActivity {
   BibleChapterNavigator chapterNavigator_{};
   std::string title_;
   std::vector<BibleChapterInfo> chapterListCache_;
-  const std::filesystem::path databasePath;
+  const std::filesystem::path databasePath_;
 
  protected:
   bool loadBook() override;

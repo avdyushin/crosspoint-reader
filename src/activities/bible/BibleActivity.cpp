@@ -27,6 +27,8 @@ namespace {
 constexpr auto MODULE_TAG = "BIBLE";
 constexpr size_t MIN_STYLED_FREE_HEAP = 40 * 1024;
 constexpr size_t MIN_STYLED_MAX_ALLOC = 20 * 1024;
+constexpr size_t MIN_STYLED_RETAIN_HEAP = 16 * 1024;
+constexpr size_t MIN_STYLED_RETAIN_ALLOC = 8 * 1024;
 constexpr size_t MAX_STYLED_PAGE_ELEMENTS = 1024;
 constexpr size_t MAX_STYLED_PAGES = 256;
 constexpr size_t IO_BUFFER_SIZE = 4096;  // 4k in sync with BUILD_IO_BUFFER_SIZE
@@ -59,11 +61,13 @@ bool buildPages(GfxRenderer& renderer, const std::filesystem::path& path, const 
         limitReason = "Too many pages";
       } else if (page_elements > MAX_STYLED_PAGE_ELEMENTS - retainedElements) {
         limitReason = "Too many page elements";
-      } else if (ESP.getFreeHeap() < MIN_STYLED_FREE_HEAP || ESP.getMaxAllocHeap() < MIN_STYLED_MAX_ALLOC) {
+      } else if (ESP.getFreeHeap() < MIN_STYLED_RETAIN_HEAP || ESP.getMaxAllocHeap() < MIN_STYLED_RETAIN_ALLOC) {
         limitReason = "No free heap left";
       }
       if (limitReason != nullptr) {
-        LOG_ERR(MODULE_TAG, "Parser failed %s", limitReason);
+        LOG_ERR(MODULE_TAG, "Page building stopped on %s (pages=%u elements=%u free=%u contig=%u)", limitReason,
+                static_cast<unsigned>(pages.size()), static_cast<unsigned>(retainedElements + page_elements),
+                ESP.getFreeHeap(), ESP.getMaxAllocHeap());
         resourceLimitHit = true;
         pages.clear();
         return;
@@ -71,8 +75,9 @@ bool buildPages(GfxRenderer& renderer, const std::filesystem::path& path, const 
       retainedElements += page_elements;
       pages.push_back(std::move(page));
     };
+    const auto pathString = path.string();
     const auto parser = makeUniqueNoThrow<ChapterHtmlSlimParser>(
-        nullptr, path.string(), renderer, config.fontId, config.lineCompression, config.extraParagraphSpacing,
+        nullptr, pathString, renderer, config.fontId, config.lineCompression, config.extraParagraphSpacing,
         config.paragraphAlignment, config.viewportWidth, config.viewportHeight, config.hyphenationEnabled,
         config.focusReadingEnabled, page_func, embedded_style, content_base, image_base, image_rendering);
 
@@ -102,18 +107,18 @@ struct overloaded : Ts... {
 
 BibleActivity::BibleActivity(const char* name, GfxRenderer& renderer, MappedInputManager& mappedInput)
     : ReaderActivity(name, renderer, mappedInput, "", false),
-      databasePath(std::filesystem::path("/") / "bible" / "modules") {}
+      databasePath_(std::filesystem::path("/") / "bible" / "modules") {}
 
 void BibleActivity::onEnter() {
   // Ignore ReaderActivity::onEnter() call to keep recents intact
   // NOLINTNEXTLINE
   Activity::onEnter();
 
-  if (!Storage.exists(".bible")) {
-    Storage.mkdir(".bible");
+  if (!Storage.exists("/.bible")) {
+    Storage.mkdir("/.bible");
   }
-  if (!Storage.exists(databasePath.c_str())) {
-    Storage.mkdir(databasePath.c_str());
+  if (!Storage.exists(databasePath_.c_str())) {
+    Storage.mkdir(databasePath_.c_str());
   }
 
   sdFontSystem.ensureLoaded(renderer);
@@ -172,7 +177,7 @@ void BibleActivity::loop() {
 void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem) {
   switch (menuItem) {
     case BibleMenuActivity::MODULE: {
-      auto browser = std::make_unique<FileBrowserActivity>(renderer, mappedInput, databasePath.string(),
+      auto browser = std::make_unique<FileBrowserActivity>(renderer, mappedInput, databasePath_.string(),
                                                            FileBrowserActivity::Mode::Bibles);
       auto handler = [this](const ActivityResult& result) {
         if (!result.isCancelled) {
@@ -265,6 +270,9 @@ void BibleActivity::renderStatusBar() const {
 bool BibleActivity::layout(const std::filesystem::path& cachePath, BibleChapterNavigator::NavDirection direction) {
   buildPages(renderer, cachePath, config_, pages_);
   chapterNavigator_.totalPages = static_cast<int>(pages_.size());
+  if (pages_.empty()) {
+    return false;
+  }
   std::visit(
       overloaded{
           [&](BibleChapterNavigator::NavFirstPage) { chapterNavigator_.currentPage = 0; },
@@ -283,13 +291,19 @@ bool BibleActivity::loadChapter(const bool clearCache, const BibleChapterNavigat
   std::format_to(std::back_inserter(title_), "{} {}", chapterNavigator_.currentBook()->name,
                  chapterNavigator_.inBookChapter);
 
-  const std::filesystem::path cache_path = std::filesystem::path(".bible") / std::string(bible_->id()) / "cache.html";
+  const std::filesystem::path cacheDir = std::filesystem::path("/") / ".bible" / std::string(bible_->id());
+
+  if (!Storage.exists(cacheDir.c_str())) {
+    Storage.mkdir(cacheDir.c_str());
+  }
+
+  const std::filesystem::path cachePath = cacheDir / "cache.html";
 
   {
-    if (clearCache || !Storage.exists(cache_path.c_str())) {
-      HalFile file = Storage.open(cache_path.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
+    if (clearCache || !Storage.exists(cachePath.c_str())) {
+      HalFile file = Storage.open(cachePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
       if (!file) {
-        LOG_ERR(MODULE_TAG, "Could not open cache file for writing %s", cache_path.c_str());
+        LOG_ERR(MODULE_TAG, "Could not open cache file for writing %s", cachePath.c_str());
         return false;
       }
       constexpr auto formatter = BibleVerseFormatter{};
@@ -302,22 +316,20 @@ bool BibleActivity::loadChapter(const bool clearCache, const BibleChapterNavigat
       LOG_DBG(MODULE_TAG, "Loading cache file");
     }
   }
-  layout(cache_path, direction);
-  return true;
+  return layout(cachePath, direction);
 }
 
 bool BibleActivity::loadBook() {
   const auto config = BibleConfigStore::getInstance().config;
 
   std::string filename;
-  // if (config.module.empty()) {
-  //   if (auto const files = Storage.listFiles(databasePath.c_str()); !files.empty()) {
-  //     filename = files[0];
-  //   }
-  // } else {
-  //   filename = config.module;
-  // }
-  filename = config.module;
+  if (config.module.empty()) {
+    if (auto const files = Storage.listFiles(databasePath_.c_str()); !files.empty()) {
+      filename = files[0].c_str();
+    }
+  } else {
+    filename = config.module;
+  }
 
   if (filename.empty()) {
     LOG_INF(MODULE_TAG, "No Bible module find");
@@ -325,18 +337,15 @@ bool BibleActivity::loadBook() {
     return false;
   }
 
-  // try {
-  const auto modulePath = databasePath / filename;
+  const auto modulePath = databasePath_ / filename;
   bible_ = std::make_unique<BibleToolbox::Bible>(modulePath);
   BibleConfigStore::getInstance().config.module = modulePath;  // Save loaded module
-  // } catch (const std::exception& e) {
+
   if (bible_->books().empty()) {
     LOG_INF(MODULE_TAG, "Could create bible instance");
     BibleConfigStore::getInstance().config.clear();  // Reset unloadable module
-
     return false;
   }
-  // }
 
   LOG_INF(MODULE_TAG, "Loading config data, book %d, chapter %d and page %d", config.bookIndex, config.chapterNumber,
           config.pageNumber);
