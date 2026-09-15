@@ -1,5 +1,5 @@
 #pragma once
-#include <sqlite3.h>
+#include <sqlite3_hal.h>
 
 #include <filesystem>
 
@@ -18,7 +18,7 @@ class Connection {
     if (sqlite3_initialize() != SQLITE_OK) {
       return false;
     }
-    if (sqlite3_open(path.c_str(), &db) != SQLITE_OK) {
+    if (sqlite3_open_v2(path.c_str(), &db, SQLITE_OPEN_READONLY, HAL_VFS_NAME) != SQLITE_OK) {
       return false;
     }
     connection.reset(db);

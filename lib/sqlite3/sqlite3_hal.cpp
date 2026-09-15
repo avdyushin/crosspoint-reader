@@ -1,10 +1,10 @@
+#include "sqlite3_hal.h"
+
 #include <HalStorage.h>
 #include <Logging.h>
 #include <sys/time.h>
 
 #include <memory>
-
-#include "sqlite3.h"
 
 namespace {
 constexpr auto LOG_ORIGIN = "SQLITE3";
@@ -47,20 +47,21 @@ int file_size(sqlite3_file* pFile, sqlite_int64* pSize) {
   return SQLITE_OK;
 }
 
-constexpr sqlite3_io_methods io_methods = {.iVersion = 3,
-                                           .xClose = [](sqlite3_file*) { return SQLITE_OK; },
-                                           .xRead = read,
-                                           .xFileSize = file_size,
-                                           .xLock = [](sqlite3_file*, int) { return SQLITE_OK; },
-                                           .xUnlock = [](sqlite3_file*, int) { return SQLITE_OK; },
-                                           .xCheckReservedLock =
-                                               [](sqlite3_file*, int* pResOut) {
-                                                 *pResOut = 0;
-                                                 return SQLITE_OK;
-                                               },
-                                           .xFileControl = [](sqlite3_file*, int, void*) { return SQLITE_OK; },
-                                           .xSectorSize = [](sqlite3_file*) { return 0; },
-                                           .xDeviceCharacteristics = [](sqlite3_file*) { return 0; }};
+constexpr sqlite3_io_methods io_methods = {
+    .iVersion = 3,
+    .xClose = [](sqlite3_file*) { return SQLITE_OK; },
+    .xRead = read,
+    .xFileSize = file_size,
+    .xLock = [](sqlite3_file*, int) { return SQLITE_OK; },
+    .xUnlock = [](sqlite3_file*, int) { return SQLITE_OK; },
+    .xCheckReservedLock =
+        [](sqlite3_file*, int* pResOut) {
+          *pResOut = 0;
+          return SQLITE_OK;
+        },
+    .xFileControl = [](sqlite3_file*, int, void*) { return SQLITE_OK; },
+    .xSectorSize = [](sqlite3_file*) { return 0; },
+    .xDeviceCharacteristics = [](sqlite3_file*) { return SQLITE_IOCAP_IMMUTABLE; }};
 
 int open(sqlite3_vfs*, const char* zName, sqlite3_file* pFile, const int flags, int* pOutFlags) {
   if (flags & SQLITE_OPEN_MAIN_DB) {
@@ -77,12 +78,14 @@ int open(sqlite3_vfs*, const char* zName, sqlite3_file* pFile, const int flags, 
   auto* file = reinterpret_cast<file_wrapper*>(pFile);
   file->hal = std::make_unique<HalFile>();
   if (!Storage.openFileForRead(LOG_ORIGIN, zName, *file->hal)) {
+    LOG_INF(LOG_ORIGIN, "Can open HAL file %s", zName);
     return SQLITE_CANTOPEN;
   }
   if (pOutFlags) {
     *pOutFlags = flags;
   }
   file->base.pMethods = &io_methods;
+  LOG_INF(LOG_ORIGIN, "Successfully opened %s", zName);
   return SQLITE_OK;
 }
 
@@ -91,7 +94,7 @@ sqlite3_vfs minimum_vfs = {
     .szOsFile = sizeof(file_wrapper),
     .mxPathname = MAX_PATH_NAME,
     .pNext = nullptr,
-    .zName = "HalStorageVFS",
+    .zName = HAL_VFS_NAME,
     .pAppData = nullptr,
     .xOpen = open,
     .xAccess = access,
