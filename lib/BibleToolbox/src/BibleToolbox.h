@@ -69,7 +69,7 @@ class Bible {
   [[nodiscard]] Module fetchInfo(const std::filesystem::path& path) const;
 
  public:
-  explicit Bible(const std::filesystem::path& path);
+  explicit Bible(const std::filesystem::path& path, const char* vfs);
 
   ~Bible() = default;
 

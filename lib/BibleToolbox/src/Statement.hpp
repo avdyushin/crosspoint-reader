@@ -1,5 +1,5 @@
 #pragma once
-#include <sqlite3_hal.h>
+#include <sqlite3.h>
 
 #include <string>
 

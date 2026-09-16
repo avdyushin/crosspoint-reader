@@ -6,6 +6,8 @@
 
 #include <memory>
 
+#include "sqlite3.h"
+
 namespace {
 constexpr auto LOG_ORIGIN = "SQLITE3";
 constexpr int MAX_PATH_NAME = 128;

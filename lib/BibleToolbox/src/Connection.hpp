@@ -1,5 +1,5 @@
 #pragma once
-#include <sqlite3_hal.h>
+#include <sqlite3.h>
 
 #include <filesystem>
 
@@ -13,12 +13,12 @@ class Connection {
   std::unique_ptr<sqlite3, decltype(&sqlite3_close)> connection{nullptr, sqlite3_close};
 
  public:
-  bool open(const std::filesystem::path& path) {
+  bool open(const std::filesystem::path& path, const char* vfs) {
     sqlite3* db = nullptr;
     if (sqlite3_initialize() != SQLITE_OK) {
       return false;
     }
-    if (sqlite3_open_v2(path.c_str(), &db, SQLITE_OPEN_READONLY, HAL_VFS_NAME) != SQLITE_OK) {
+    if (sqlite3_open_v2(path.c_str(), &db, SQLITE_OPEN_READONLY, vfs) != SQLITE_OK) {
       return false;
     }
     connection.reset(db);

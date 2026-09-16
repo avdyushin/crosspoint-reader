@@ -73,8 +73,8 @@ void process_verse_text_in_place(std::string& text, const bool exclude_strong_nu
 }  // namespace
 
 namespace BibleToolbox {
-Bible::Bible(const std::filesystem::path& path) {
-  if (connection_.open(path)) {
+Bible::Bible(const std::filesystem::path& path, const char* vfs) {
+  if (connection_.open(path, vfs)) {
     constexpr auto verses_by_chapter = "SELECT verse, text FROM verses WHERE book_number = ? AND chapter = ?;";
     if (chapterStatement_.prepare(connection_.get(), verses_by_chapter)) {
       module_ = fetchInfo(path);

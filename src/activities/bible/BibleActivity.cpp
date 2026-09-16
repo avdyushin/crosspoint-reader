@@ -22,6 +22,7 @@
 #include "activities/home/FileBrowserActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "sqlite3_hal.h"
 #include "util/BibleVerseFormatter.h"
 
 namespace {
@@ -303,7 +304,7 @@ bool BibleActivity::loadBook() {
   }
 
   const auto modulePath = databasePath_ / filename;
-  bible_ = std::make_unique<BibleToolbox::Bible>(modulePath);
+  bible_ = std::make_unique<BibleToolbox::Bible>(modulePath, HAL_VFS_NAME);
   BibleConfigStore::getInstance().config.module = modulePath;  // Save loaded module
 
   if (bible_->books().empty()) {

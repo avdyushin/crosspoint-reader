@@ -30,7 +30,7 @@ class BibleToolboxTest : public ::testing::Test {
 
   void SetUp() override {
     path = std::filesystem::path(__FILE__).parent_path() / "assets" / "KJV+.SQLite3";
-    bible = std::make_unique<Bible>(path);
+    bible = std::make_unique<Bible>(path, nullptr);
   }
 };
 
