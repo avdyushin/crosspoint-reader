@@ -5,14 +5,14 @@
 #include "BibleChapterNavigator.h"
 #include "BibleChapterSelectionActivity.h"
 #include "BibleMenuActivity.h"
+#include "BibleSection.h"
 #include "BibleToolbox.h"
-#include "Epub/Page.h"
 #include "Epub/ReaderRenderSpec.h"
 #include "activities/Activity.h"
 #include "activities/reader/ReaderActivity.h"
 
 class BibleActivity final : public ReaderActivity {
-  std::vector<std::unique_ptr<Page>> pages_;
+  std::unique_ptr<BibleSection> section_;
   ReaderRenderSpec renderSpec_{};
   std::unique_ptr<BibleToolbox::Bible> bible_;
   BibleChapterNavigator chapterNavigator_{};

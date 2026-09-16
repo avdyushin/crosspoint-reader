@@ -79,6 +79,8 @@ class Bible {
 
   [[nodiscard]] std::string_view chapterString() const { return module_.chapterString; }
 
+  [[nodiscard]] std::string_view language() const { return module_.language; }
+
   const Book* operator[](bookNumber number) const;
 
   const Book* operator[](std::string_view name) const;

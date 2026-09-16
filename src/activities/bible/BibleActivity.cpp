@@ -16,6 +16,8 @@
 #include "Epub/Page.h"
 #include "Epub/parsers/ChapterHtmlSlimParser.h"
 #include "FontCacheManager.h"
+#include "I18n.h"
+#include "I18nKeys.h"
 #include "SdCardFontSystem.h"
 #include "activities/home/FileBrowserActivity.h"
 #include "components/UITheme.h"
@@ -25,78 +27,7 @@
 namespace {
 
 constexpr auto MODULE_TAG = "BIBLE";
-constexpr size_t MIN_STYLED_FREE_HEAP = 40 * 1024;
-constexpr size_t MIN_STYLED_MAX_ALLOC = 20 * 1024;
-constexpr size_t MIN_STYLED_RETAIN_HEAP = 16 * 1024;
-constexpr size_t MIN_STYLED_RETAIN_ALLOC = 8 * 1024;
-constexpr size_t MAX_STYLED_PAGE_ELEMENTS = 1024;
-constexpr size_t MAX_STYLED_PAGES = 256;
 constexpr size_t IO_BUFFER_SIZE = 4096;  // 4k in sync with BUILD_IO_BUFFER_SIZE
-
-bool buildPages(GfxRenderer& renderer, const std::filesystem::path& path, const ReaderRenderSpec& spec,
-                std::vector<std::unique_ptr<Page>>& pages) {
-  if (ESP.getFreeHeap() < MIN_STYLED_FREE_HEAP || ESP.getMaxAllocHeap() < MIN_STYLED_MAX_ALLOC) {
-    LOG_ERR(MODULE_TAG, "Low heap for styled chapter (%u free, %u max block)", ESP.getFreeHeap(),
-            ESP.getMaxAllocHeap());
-    return false;
-  }
-  pages.clear();
-  pages.reserve(MAX_STYLED_PAGES);
-  bool parsed = false;
-  bool resourceLimitHit = false;
-  {
-    size_t retainedElements = 0;
-    const char* limitReason = nullptr;
-    constexpr int image_rendering = 2;
-    constexpr auto image_base = "";
-    constexpr auto content_base = "";
-    constexpr bool embedded_style = false;
-    auto page_func = [&pages, &resourceLimitHit, &retainedElements, &limitReason](std::unique_ptr<Page> page, uint16_t,
-                                                                                  uint16_t, uint32_t) {
-      if (resourceLimitHit) {
-        return;
-      }
-      const size_t page_elements = page->elements.size();
-      if (pages.size() > MAX_STYLED_PAGES) {
-        limitReason = "Too many pages";
-      } else if (page_elements > MAX_STYLED_PAGE_ELEMENTS - retainedElements) {
-        limitReason = "Too many page elements";
-      } else if (ESP.getFreeHeap() < MIN_STYLED_RETAIN_HEAP || ESP.getMaxAllocHeap() < MIN_STYLED_RETAIN_ALLOC) {
-        limitReason = "No free heap left";
-      }
-      if (limitReason != nullptr) {
-        LOG_ERR(MODULE_TAG, "Page building stopped on %s (pages=%u elements=%u free=%u contig=%u)", limitReason,
-                static_cast<unsigned>(pages.size()), static_cast<unsigned>(retainedElements + page_elements),
-                ESP.getFreeHeap(), ESP.getMaxAllocHeap());
-        resourceLimitHit = true;
-        pages.clear();
-        return;
-      }
-      retainedElements += page_elements;
-      pages.push_back(std::move(page));
-    };
-    const auto pathString = path.string();
-    const auto parser = makeUniqueNoThrow<ChapterHtmlSlimParser>(
-        nullptr, pathString, renderer, spec.fontId, spec.lineCompression, spec.extraParagraphSpacing,
-        spec.paragraphAlignment, spec.viewportWidth, spec.viewportHeight, spec.hyphenationEnabled,
-        spec.focusReadingEnabled, page_func, embedded_style, content_base, image_base, image_rendering);
-
-    if (!parser) {
-      LOG_ERR(MODULE_TAG, "Out of memory!");
-    } else {
-      parsed = parser->parseAndBuildPages();
-    }
-  }
-  if (resourceLimitHit) {
-    LOG_ERR(MODULE_TAG, "Renderer exceeded page heap limit");
-    return false;
-  }
-  if (!parsed || pages.empty()) {
-    LOG_ERR(MODULE_TAG, "Can't parse or pages are empty");
-    return false;
-  }
-  return true;
-}
 
 template <class... Ts>
 struct overloaded : Ts... {
@@ -246,8 +177,13 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
 }
 
 void BibleActivity::drawVerses(const int font_id, const int x, const int y) const {
-  if (!pages_.empty()) {
-    pages_[chapterNavigator_.currentPage]->render(renderer, font_id, x, y);
+  auto page = section_->loadPage(chapterNavigator_.currentPage);
+  if (page) {
+    page->render(renderer, font_id, x, y);
+  } else {
+    LOG_ERR(MODULE_TAG, "Failed to load page from storage");
+    section_->abandonBuild();
+    auto _ = section_->clearCache();
   }
 }
 
@@ -261,9 +197,43 @@ void BibleActivity::renderStatusBar() const {
 }
 
 bool BibleActivity::layout(const std::filesystem::path& cachePath, BibleChapterNavigator::NavDirection direction) {
-  buildPages(renderer, cachePath, renderSpec_, pages_);
-  chapterNavigator_.totalPages = static_cast<int>(pages_.size());
-  if (pages_.empty()) {
+  if (!section_) {
+    section_ = std::make_unique<BibleSection>(cachePath.parent_path(), std::string(bible_->language()),
+                                              chapterNavigator_.currentBookNumber(), chapterNavigator_.inBookChapter,
+                                              renderer);
+
+    const bool cacheLoaded = section_->loadSectionFile(renderSpec_);
+    const bool cacheComplete = cacheLoaded && !section_->isPartial();
+
+    if (!cacheComplete) {
+      if (section_->isPartial()) {
+        LOG_DBG(MODULE_TAG, "Partial cache found (%d pages), resuming...", section_->pageCount);
+      } else {
+        LOG_DBG(MODULE_TAG, "Cache not found, building...");
+      }
+    } else {
+      LOG_DBG(MODULE_TAG, "Cache found (%d pages)", section_->pageCount);
+    }
+
+    auto _ = GUI.drawPopup(renderer, tr(STR_INDEXING));
+    const auto popup = [this]() {
+      if (renderer.hasFrameBuffer()) {
+        auto _ = GUI.drawPopup(renderer, tr(STR_INDEXING));
+      }
+    };
+
+    GfxRenderer::FrameBufferLoan loan(renderer);
+    if (!section_->createSectionFile(renderSpec_, popup)) {
+      LOG_ERR(MODULE_TAG, "Failed to create section file");
+      section_.reset();
+      loan.end();
+      return false;
+    }
+    loan.end();
+  }
+
+  chapterNavigator_.totalPages = static_cast<int>(section_->pageCount);
+  if (section_->pageCount == 0) {
     return false;
   }
   std::visit(
@@ -280,7 +250,9 @@ bool BibleActivity::layout(const std::filesystem::path& cachePath, BibleChapterN
 bool BibleActivity::isAtEndOfBook() const { return false; }
 
 bool BibleActivity::loadChapter(const bool clearCache, const BibleChapterNavigator::NavDirection direction) {
+  section_.reset();
   title_.clear();
+
   std::format_to(std::back_inserter(title_), "{} {}", chapterNavigator_.currentBook()->name,
                  chapterNavigator_.inBookChapter);
 
