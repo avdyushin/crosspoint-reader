@@ -84,7 +84,7 @@ class BibleChapterNavigator {
       onChapterChanged(currentBookIndex, inBookChapter, NavLastPage{});
     } else if (currentBookIndex > 0) {
       currentBookIndex--;
-      inBookChapter = totalChaptersInBook() - 1;
+      inBookChapter = totalChaptersInBook();
       onChapterChanged(currentBookIndex, inBookChapter, NavLastPage{});
     }
   }
