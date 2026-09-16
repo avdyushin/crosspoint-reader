@@ -123,6 +123,9 @@ UIIcon UITheme::getFileIcon(const std::string& filename) {
   if (FsHelpers::hasBmpExtension(filename) || FsHelpers::hasPngExtension(filename)) {
     return Image;
   }
+  if (FsHelpers::hasSqliteExtension(filename)) {
+    return Bible;
+  }
   return File;
 }
 

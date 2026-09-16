@@ -18,11 +18,10 @@ class BibleActivity final : public ReaderActivity {
   BibleChapterNavigator chapterNavigator_{};
   std::string title_;
   std::vector<BibleChapterInfo> chapterListCache_;
-  const std::filesystem::path databasePath_;
 
  protected:
   bool loadBook() override;
-  std::string getBookTitle() const override { return ""; }
+  std::string getBookTitle() const override;
   void renderBook() override;
   bool pageTurn(bool isForward) override;
   bool skipPages(int amount) override;
@@ -35,7 +34,8 @@ class BibleActivity final : public ReaderActivity {
   void handleMenuAction(BibleMenuActivity::MenuItem menuItem);
 
  public:
-  BibleActivity(const char* name, GfxRenderer& renderer, MappedInputManager& mappedInput);
+  BibleActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
+                bool allowFastInitialRefresh);
   ~BibleActivity() override = default;
 
   void loop() override;

@@ -10,6 +10,7 @@
 #include <algorithm>
 
 #include "CrossPointSettings.h"
+#include "CrossPointState.h"
 #include "OpdsServerStore.h"
 #include "bible/BibleActivity.h"
 #include "boot_sleep/BootActivity.h"
@@ -254,7 +255,7 @@ void ActivityManager::goToRecentBooks() {
 }
 
 void ActivityManager::goToBible() {
-  auto activity = makeUniqueNoThrow<BibleActivity>("Bible", renderer, mappedInput);
+  auto activity = makeUniqueNoThrow<BibleActivity>(renderer, mappedInput, "", false);
   if (activity) {
     replaceActivity(std::move(activity));
   }

@@ -14,6 +14,7 @@
 #include "SdCardFontSystem.h"
 #include "TxtReaderActivity.h"
 #include "XtcReaderActivity.h"
+#include "activities/bible/BibleActivity.h"
 
 ReaderActivity::ReaderActivity(const char* name, GfxRenderer& renderer, MappedInputManager& mappedInput,
                                std::string bookPath, const bool allowFastInitialRefresh)
@@ -32,6 +33,8 @@ std::unique_ptr<ReaderActivity> ReaderActivity::create(GfxRenderer& renderer, Ma
     activity = makeUniqueNoThrow<XtcReaderActivity>(renderer, mappedInput, std::move(path), allowFastInitialRefresh);
   } else if (FsHelpers::hasTxtExtension(path) || FsHelpers::hasMarkdownExtension(path)) {
     activity = makeUniqueNoThrow<TxtReaderActivity>(renderer, mappedInput, std::move(path), allowFastInitialRefresh);
+  } else if (FsHelpers::hasSqliteExtension(path)) {
+    activity = makeUniqueNoThrow<BibleActivity>(renderer, mappedInput, std::move(path), allowFastInitialRefresh);
   } else {
     activity = makeUniqueNoThrow<EpubReaderActivity>(renderer, mappedInput, std::move(path), allowFastInitialRefresh);
   }

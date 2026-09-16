@@ -18,6 +18,7 @@
 #include "FontCacheManager.h"
 #include "I18n.h"
 #include "I18nKeys.h"
+#include "RecentBooksStore.h"
 #include "SdCardFontSystem.h"
 #include "activities/home/FileBrowserActivity.h"
 #include "components/UITheme.h"
@@ -37,9 +38,9 @@ struct overloaded : Ts... {
 
 }  // namespace
 
-BibleActivity::BibleActivity(const char* name, GfxRenderer& renderer, MappedInputManager& mappedInput)
-    : ReaderActivity(name, renderer, mappedInput, "", false),
-      databasePath_(std::filesystem::path("/") / "bible" / "modules") {}
+BibleActivity::BibleActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
+                             const bool allowFastInitialRefresh)
+    : ReaderActivity("BibleActivity", renderer, mappedInput, std::move(bookPath), allowFastInitialRefresh) {}
 
 void BibleActivity::onEnter() {
   // Ignore ReaderActivity::onEnter() call to keep recents intact
@@ -48,9 +49,6 @@ void BibleActivity::onEnter() {
 
   if (!Storage.exists("/.bible")) {
     Storage.mkdir("/.bible");
-  }
-  if (!Storage.exists(databasePath_.c_str())) {
-    Storage.mkdir(databasePath_.c_str());
   }
 
   sdFontSystem.ensureLoaded(renderer);
@@ -65,6 +63,11 @@ void BibleActivity::onEnter() {
 
   if (!BibleConfigStore::getInstance().loadFromFile()) {
     LOG_INF(MODULE_TAG, "Could not load configuration file");
+  }
+
+  if (bookPath.empty()) {
+    bookPath = BibleConfigStore::getInstance().config.module;
+    LOG_INF(MODULE_TAG, "No module path provided, using last opened: %s", bookPath.c_str());
   }
 
   loadBook();
@@ -102,13 +105,15 @@ void BibleActivity::loop() {
 void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem) {
   switch (menuItem) {
     case BibleMenuActivity::MODULE: {
-      auto browser = std::make_unique<FileBrowserActivity>(renderer, mappedInput, databasePath_.string(),
-                                                           FileBrowserActivity::Mode::Bibles);
+      const std::filesystem::path modulePath{bookPath};
+      const auto parent = modulePath.parent_path();
+      auto browser =
+          std::make_unique<FileBrowserActivity>(renderer, mappedInput, parent, FileBrowserActivity::Mode::Bibles);
       auto handler = [this](const ActivityResult& result) {
         if (!result.isCancelled) {
           const auto& menuResult = std::get<FilePathResult>(result.data);
           LOG_DBG(MODULE_TAG, "Selected module path = %s", menuResult.path.c_str());
-          BibleConfigStore::getInstance().config.module = menuResult.path;  // Save loaded module
+          bookPath = menuResult.path;
           loadBook();
         }
         requestUpdate();
@@ -288,24 +293,14 @@ bool BibleActivity::loadChapter(const bool clearCache, const BibleChapterNavigat
 bool BibleActivity::loadBook() {
   const auto config = BibleConfigStore::getInstance().config;
 
-  std::string filename;
-  if (config.module.empty()) {
-    if (auto const files = Storage.listFiles(databasePath_.c_str()); !files.empty()) {
-      filename = files[0].c_str();
-    }
-  } else {
-    filename = config.module;
-  }
-
-  if (filename.empty()) {
+  if (bookPath.empty()) {
     LOG_INF(MODULE_TAG, "No Bible module find");
     BibleConfigStore::getInstance().config.clear();  // Reset unloadable module
     return false;
   }
 
-  const auto modulePath = databasePath_ / filename;
-  bible_ = std::make_unique<BibleToolbox::Bible>(modulePath, HAL_VFS_NAME);
-  BibleConfigStore::getInstance().config.module = modulePath;  // Save loaded module
+  bible_ = std::make_unique<BibleToolbox::Bible>(bookPath, HAL_VFS_NAME);
+  BibleConfigStore::getInstance().config.module = bookPath;  // Save loaded module
 
   if (bible_->books().empty()) {
     LOG_INF(MODULE_TAG, "Could create bible instance");
@@ -325,6 +320,9 @@ bool BibleActivity::loadBook() {
     BibleConfigStore::getInstance().config.chapterNumber = chapterNavigator_.inBookChapter;
     this->loadChapter(true, direction);
   };
+
+  // Update recents
+  RECENT_BOOKS.updateBook(bookPath, getBookTitle(), "", "");
 
   return loadChapter(true, BibleChapterNavigator::NavTargetPage{config.pageNumber});
 }
@@ -364,3 +362,5 @@ void BibleActivity::renderBook() {
 }
 
 bool BibleActivity::skipPages(const int amount) { return chapterNavigator_.skipPages(amount); }
+
+std::string BibleActivity::getBookTitle() const { return std::string(bible_->description()); }

@@ -69,12 +69,13 @@ void FileBrowserActivity::loadFiles() {
           files.emplace_back(filename);
         }
       } else if (mode == Mode::Bibles) {
-        if (FsHelpers::checkFileExtension(filename, ".sqlite3")) {
+        if (FsHelpers::hasSqliteExtension(filename)) {
           files.emplace_back(filename);
         }
       } else if (FsHelpers::hasEpubExtension(filename) || FsHelpers::hasXtcExtension(filename) ||
                  FsHelpers::hasTxtExtension(filename) || FsHelpers::hasMarkdownExtension(filename) ||
-                 FsHelpers::hasBmpExtension(filename) || FsHelpers::hasPngExtension(filename)) {
+                 FsHelpers::hasBmpExtension(filename) || FsHelpers::hasPngExtension(filename) ||
+                 FsHelpers::hasSqliteExtension(filename)) {
         files.emplace_back(filename);
       }
     }

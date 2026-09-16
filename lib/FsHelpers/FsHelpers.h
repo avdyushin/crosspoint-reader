@@ -69,6 +69,13 @@ bool hasCssExtension(std::string_view fileName);
 inline bool hasCssExtension(const String& fileName) {
   return hasCssExtension(std::string_view{fileName.c_str(), fileName.length()});
 }
+
+// Check for .SQLite3 extension (case-insensitive)
+bool hasSqliteExtension(std::string_view fileName);
+inline bool hasSqliteExtension(const String& fileName) {
+  return hasSqliteExtension(std::string_view{fileName.c_str(), fileName.length()});
+}
+
 std::string extractFolderPath(const std::string& filePath);
 
 /**
