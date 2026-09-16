@@ -102,10 +102,7 @@ const Book* Bible::operator[](const std::string_view name) const {
 
 [[nodiscard]] std::vector<Book> Bible::fetchBooks() const {
   constexpr auto query = R"SQL(
-                SELECT book_number, long_name, short_name,
-                    (SELECT COUNT(DISTINCT chapter)
-                    FROM verses
-                    WHERE verses.book_number = books.book_number)
+                SELECT book_number, long_name, short_name, total_chapters
                 FROM books
                 ORDER BY book_number
             )SQL";
