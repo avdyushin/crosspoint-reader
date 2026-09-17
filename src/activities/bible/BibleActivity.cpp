@@ -13,6 +13,7 @@
 #include "BibleMenuActivity.h"
 #include "BufferedFile.h"
 #include "BufferedFileWriterIterator.h"
+#include "CrossPointState.h"
 #include "Epub/Page.h"
 #include "Epub/parsers/ChapterHtmlSlimParser.h"
 #include "FontCacheManager.h"
@@ -71,6 +72,9 @@ void BibleActivity::onEnter() {
   chapterNavigator_.onPageChanged = [this](const int page) { config_.pageNumber = page; };
 
   if (loadBook()) {
+    APP_STATE.openEpubPath = bookPath;
+    auto _ = APP_STATE.saveToFile();
+
     chapterNavigator_.onChapterChanged = [this](const int bookIndex, const int chapterIndex,
                                                 const BibleToolbox::ChapterNavigator::NavDirection direction) {
       LOG_INF(MODULE_TAG, "Book index %d chapter %d direction %d", bookIndex, chapterIndex, direction);
