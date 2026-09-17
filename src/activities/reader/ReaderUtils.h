@@ -63,7 +63,8 @@ inline PageTurnResult detectPageTurn(const MappedInputManager& input) {
       tiltPrev || (pageButtonTriggered(MappedInputManager::Button::PageBack) || pageButtonTriggered(prevButton));
   const bool powerTurn = SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::PAGE_TURN &&
                          input.wasReleased(MappedInputManager::Button::Power);
-  const bool next = tiltNext || pageButtonTriggered(MappedInputManager::Button::PageForward) || powerTurn ||
+  const bool next = input.homeButtonAction() == HomeButtonAction::NextPage || tiltNext ||
+                    pageButtonTriggered(MappedInputManager::Button::PageForward) || powerTurn ||
                     pageButtonTriggered(nextButton);
   return {prev, next, tiltPrev || tiltNext};
 }
@@ -74,7 +75,7 @@ struct TouchPageTurn {
   unsigned long heldMs;
 };
 
-inline TouchPageTurn detectTouchPageTurn(GfxRenderer& renderer, const MappedInputManager& input) {
+inline TouchPageTurn detectTouchPageTurn(const GfxRenderer& renderer, const MappedInputManager& input) {
   TouchPageTurn result{false, false, 0};
   if (!SETTINGS.touchReaderControls || !input.hasTouch()) {
     return result;
@@ -138,9 +139,8 @@ inline bool isTouchMenuTap(const GfxRenderer& renderer, const MappedInputManager
   return x >= zoneWidth && x < width - zoneWidth && y >= zoneHeight && y < height - zoneHeight;
 }
 
-// Reader menu opens on the menu edge-swipe or a center-third tap. On home-key
-// boards a long press of the capacitive key runs the user-selected long-press
-// function instead (SETTINGS.longPressMenuFunction), not the menu.
+// Reader menu opens on the menu edge-swipe or a center-third tap. Home-key
+// actions are configured separately from screen gestures.
 // Menu gestures honor showReaderMenu independently of touchReaderControls,
 // which only gates page-turn touch zones in detectTouchPageTurn().
 inline bool isTouchMenuGesture(const GfxRenderer& renderer, const MappedInputManager& input) {
@@ -179,7 +179,7 @@ inline void displayWithRefreshCycle(const GfxRenderer& renderer, int& pagesUntil
 // re-drive the whole text body (a visible flash). Other panels display
 // normally. Same refresh-cadence bookkeeping as displayWithRefreshCycle.
 inline void displayBaseWithRefreshCycle(const GfxRenderer& renderer, int& pagesUntilFullRefresh) {
-  if (!renderer.combinesGrayscaleBase()) {
+  if (renderer.grayscaleCapabilities().base != HalDisplay::GrayscaleBase::Combined) {
     displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
     return;
   }
@@ -202,7 +202,8 @@ void renderAntiAliased(GfxRenderer& renderer, RenderFn&& renderFn) {
     LOG_ERR("READER", "Failed to store BW buffer for anti-aliasing");
     // A combined-base panel may still hold a deferred B/W activation; flush it
     // so the page reaches the panel even without its grays.
-    if (renderer.combinesGrayscaleBase()) renderer.cleanupGrayscaleWithFrameBuffer();
+    if (renderer.grayscaleCapabilities().base == HalDisplay::GrayscaleBase::Combined)
+      renderer.cleanupGrayscaleWithFrameBuffer();
     return;
   }
 

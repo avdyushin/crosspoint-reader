@@ -1,5 +1,7 @@
 #include "Section.h"
 
+#include <FontCacheManager.h>
+#include <GfxRenderer.h>
 #include <HalStorage.h>
 #include <Logging.h>
 #include <Memory.h>
@@ -46,7 +48,10 @@ namespace {
 // v42: Closing a block strips inherited vertical margins and padding.
 // v43: Paragraph base direction excludes direction changes from inline elements.
 // v44: Persist internal-link rectangles with each page for touch navigation.
-constexpr uint8_t SECTION_FILE_VERSION = 44;
+// v45: Internal EPUB links preserve CSS superscript/subscript positioning.
+// v46: Ordered lists number their items, list-style-type: none suppresses markers,
+//      and <ul>/<ol> containers contribute their own margins/padding to child insets.
+constexpr uint8_t SECTION_FILE_VERSION = 46;
 // Written into the version field while a build is in progress; patched to
 // SECTION_FILE_VERSION only when the build is finalized. An abandoned /
 // crash-interrupted .bin therefore carries version 0, which loadSectionFile rejects
@@ -258,6 +263,10 @@ bool Section::startBuild(const ReaderRenderSpec& spec, const std::function<void(
   if (build_) {
     LOG_ERR("SCT", "startBuild called while a build is already active");
     return false;
+  }
+  // Reclaim rebuildable font caches before CSS and layout allocations.
+  if (auto* fontCache = renderer.getFontCacheManager()) {
+    fontCache->releaseSdFontCaches();
   }
   buildComplete_ = false;
   builtPageCount_ = 0;
