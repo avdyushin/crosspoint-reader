@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 
+#include "BibleVerseFormatter.h"
 #include "lib/BibleToolbox/src/BibleToolbox.h"
 
 using namespace BibleToolbox;
@@ -14,7 +15,7 @@ class MockVersesProvider {
 
  public:
   const Book* operator[](bookNumber) const { return &book_; }
-  static std::vector<Verse> chapter_verses(bookNumber, chapterNumber, bool) {
+  static std::vector<Verse> chapterVerses(bookNumber, chapterNumber, bool) {
     return std::vector{
         Verse{.verse = 1, .text = "First verse."},
         Verse{.verse = 2, .text = "Last verse."},
@@ -33,6 +34,37 @@ class BibleToolboxTest : public ::testing::Test {
     bible = std::make_unique<Bible>(path, nullptr);
   }
 };
+
+TEST_F(BibleToolboxTest, HtmlVerseFormatterFirstChapter) {
+  std::string actual;
+  const auto provider = MockVersesProvider{};
+  constexpr auto formatter = BibleVerseFormatter{};
+  formatter.formatChapter(std::back_inserter(actual), provider, 0, 1, "Ch.");
+  constexpr auto expected =
+      "<html><body>\n"
+      "<h1>Genesis</h1>\n"
+      "<h2>Ch. 1</h2>\n"
+      "<p><sup>1 </sup> First verse.</p>\n"
+      "<p><sup>2 </sup> Last verse.</p>\n"
+      "</body></html>\n";
+
+  ASSERT_EQ(expected, actual) << "Invalid formatted text";
+}
+
+TEST_F(BibleToolboxTest, HtmlVerseFormatterNonFirstChapter) {
+  std::string actual;
+  const auto provider = MockVersesProvider{};
+  constexpr auto formatter = BibleVerseFormatter{};
+  formatter.formatChapter(std::back_inserter(actual), provider, 0, 2, "Ch.");
+  constexpr auto expected =
+      "<html><body>\n"
+      "<h2>Ch. 2</h2>\n"
+      "<p><sup>1 </sup> First verse.</p>\n"
+      "<p><sup>2 </sup> Last verse.</p>\n"
+      "</body></html>\n";
+
+  ASSERT_EQ(expected, actual) << "Invalid formatted text";
+}
 
 TEST_F(BibleToolboxTest, ValidatesBookAndChapterCounts) {
   constexpr auto TOTAL_BOOKS = 66;
