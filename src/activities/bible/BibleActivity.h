@@ -2,11 +2,12 @@
 
 #include <filesystem>
 
-#include "BibleChapterNavigator.h"
 #include "BibleChapterSelectionActivity.h"
+#include "BibleConfigStore.h"
 #include "BibleMenuActivity.h"
 #include "BibleSection.h"
 #include "BibleToolbox.h"
+#include "ChapterNavigator.h"
 #include "Epub/ReaderRenderSpec.h"
 #include "activities/Activity.h"
 #include "activities/reader/ReaderActivity.h"
@@ -15,9 +16,10 @@ class BibleActivity final : public ReaderActivity {
   std::unique_ptr<BibleSection> section_;
   ReaderRenderSpec renderSpec_{};
   std::unique_ptr<BibleToolbox::Bible> bible_;
-  BibleChapterNavigator chapterNavigator_{};
-  std::string title_;
+  BibleToolbox::ChapterNavigator chapterNavigator_{};
+  std::string chapterTitle_;
   std::vector<BibleChapterInfo> chapterListCache_;
+  BibleConfigStore config_;
 
  protected:
   bool loadBook() override;
@@ -28,9 +30,9 @@ class BibleActivity final : public ReaderActivity {
   bool isAtEndOfBook() const override;
   void onReturnFromEndOfBook() override {}
   void drawVerses(int font_id, int x, int y) const;
-  bool layout(const std::filesystem::path& cachePath, BibleChapterNavigator::NavDirection direction);
+  bool layout(const std::filesystem::path& cachePath, BibleToolbox::ChapterNavigator::NavDirection direction);
   void renderStatusBar() const;
-  bool loadChapter(bool clearCache, BibleChapterNavigator::NavDirection direction);
+  bool loadChapter(bool clearCache, BibleToolbox::ChapterNavigator::NavDirection direction);
   void handleMenuAction(BibleMenuActivity::MenuItem menuItem);
 
  public:

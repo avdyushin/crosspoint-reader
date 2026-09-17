@@ -1,6 +1,6 @@
 #pragma once
-#include <filesystem>
 
+#include "BibleToolbox.h"
 #include "PersistableStore.h"
 
 class BibleConfigStore : public PersistableStore<BibleConfigStore> {
@@ -9,41 +9,40 @@ class BibleConfigStore : public PersistableStore<BibleConfigStore> {
   mutable std::mutex configMutex;
 
  public:
-  struct Config {
-    std::string version;
-    std::string module;
-    int bookIndex;
-    int chapterNumber;
-    int pageNumber;
+  std::string version;
+  std::string biblePath;
+  int bookIndex;
+  int chapterNumber = BibleToolbox::START_CHAPTER_NUMBER;
+  int pageNumber;
 
-    void clear() {
-      module.clear();
-      bookIndex = 0;
-      chapterNumber = 1;
-      pageNumber = 0;
-    }
-  };
+  ~BibleConfigStore() { auto _ = saveToFile(); }
 
-  Config config{};
+  void clear() {
+    version = CONFIG_VERSION;
+    biblePath.clear();
+    bookIndex = 0;
+    chapterNumber = BibleToolbox::START_CHAPTER_NUMBER;
+    pageNumber = 0;
+  }
 
   static const char* getFilePath() { return CONFIG_PATH; }
 
   void toJson(JsonDocument& doc) const {
     std::lock_guard lock(configMutex);
     doc["version"] = CONFIG_VERSION;
-    doc["module"] = config.module;
-    doc["bookIndex"] = config.bookIndex;
-    doc["chapterNumber"] = config.chapterNumber;
-    doc["pageNumber"] = config.pageNumber;
+    doc["module"] = biblePath;
+    doc["bookIndex"] = bookIndex;
+    doc["chapterNumber"] = chapterNumber;
+    doc["pageNumber"] = pageNumber;
   }
 
   bool fromJson(const JsonVariantConst doc) {
     std::lock_guard lock(configMutex);
-    config.version = doc["version"] | CONFIG_VERSION;
-    config.module = doc["module"] | "";
-    config.bookIndex = doc["bookIndex"] | 0;
-    config.chapterNumber = doc["chapterNumber"] | 1;
-    config.pageNumber = doc["pageNumber"] | 0;
+    version = doc["version"] | CONFIG_VERSION;
+    biblePath = doc["module"] | "";
+    bookIndex = doc["bookIndex"] | 0;
+    chapterNumber = doc["chapterNumber"] | BibleToolbox::START_CHAPTER_NUMBER;
+    pageNumber = doc["pageNumber"] | 0;
     return true;
   }
 };
