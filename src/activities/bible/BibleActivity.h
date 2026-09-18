@@ -29,10 +29,10 @@ class BibleActivity final : public ReaderActivity {
   bool skipPages(int amount) override;
   bool isAtEndOfBook() const override;
   void onReturnFromEndOfBook() override {}
-  void drawVerses(int font_id, int x, int y) const;
+  void renderPage(int font_id, int x, int y) const;
   bool layout(const std::filesystem::path& cachePath, BibleToolbox::ChapterNavigator::NavDirection direction);
   void renderStatusBar() const;
-  bool loadChapter(bool clearCache, BibleToolbox::ChapterNavigator::NavDirection direction);
+  bool loadChapter(BibleToolbox::ChapterNavigator::NavDirection direction);
   void handleMenuAction(BibleMenuActivity::MenuItem menuItem);
 
  public:

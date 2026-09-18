@@ -31,6 +31,7 @@ namespace {
 
 constexpr auto MODULE_TAG = "BIBLE";
 constexpr size_t IO_BUFFER_SIZE = 4096;  // 4k in sync with BUILD_IO_BUFFER_SIZE
+constexpr auto BUILD_PAGES_PER_CHUNK = 8;
 
 template <class... Ts>
 struct overloaded : Ts... {
@@ -81,7 +82,7 @@ void BibleActivity::onEnter() {
       config_.bookIndex = chapterNavigator_.currentBookIndex;
       config_.chapterNumber = chapterNavigator_.inBookChapter;
       RECENT_BOOKS.updateBook(bookPath, getBookTitle(), chapterTitle_, "");
-      this->loadChapter(true, direction);
+      this->loadChapter(direction);
     };
   }
   requestUpdate();
@@ -142,7 +143,7 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
             chapterNavigator_.setCurrentPage(0);
             config_.bookIndex = targetBookIndex;
             config_.chapterNumber = BibleToolbox::START_CHAPTER_NUMBER;
-            loadChapter(true, BibleToolbox::ChapterNavigator::NavFirstPage{});
+            loadChapter(BibleToolbox::ChapterNavigator::NavFirstPage{});
           } else {
             LOG_DBG(MODULE_TAG, "Active book selected or out of range: %d", targetBookIndex);
           }
@@ -174,7 +175,7 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
             chapterNavigator_.inBookChapter = targetChapterNumber;
             chapterNavigator_.setCurrentPage(0);
             config_.chapterNumber = targetChapterNumber;
-            loadChapter(true, BibleToolbox::ChapterNavigator::NavFirstPage{});
+            loadChapter(BibleToolbox::ChapterNavigator::NavFirstPage{});
           } else {
             LOG_DBG(MODULE_TAG, "Active chapter selected or out of range: %d", targetChapterNumber);
           }
@@ -186,7 +187,7 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
   }
 }
 
-void BibleActivity::drawVerses(const int font_id, const int x, const int y) const {
+void BibleActivity::renderPage(const int font_id, const int x, const int y) const {
   auto page = section_->loadPage(chapterNavigator_.getCurrentPage());
   if (page) {
     page->render(renderer, font_id, x, y);
@@ -216,31 +217,64 @@ bool BibleActivity::layout(const std::filesystem::path& cachePath,
     const bool cacheLoaded = section_->loadSectionFile(renderSpec_);
     const bool cacheComplete = cacheLoaded && !section_->isPartial();
 
-    if (!cacheComplete) {
-      if (section_->isPartial()) {
-        LOG_DBG(MODULE_TAG, "Partial cache found (%d pages), resuming...", section_->pageCount);
-      } else {
-        LOG_DBG(MODULE_TAG, "Cache not found, building...");
-      }
-    } else {
-      LOG_DBG(MODULE_TAG, "Cache found (%d pages)", section_->pageCount);
-    }
-
-    auto _ = GUI.drawPopup(renderer, tr(STR_INDEXING));
     const auto popup = [this]() {
       if (renderer.hasFrameBuffer()) {
         auto _ = GUI.drawPopup(renderer, tr(STR_INDEXING));
       }
     };
 
-    GfxRenderer::FrameBufferLoan loan(renderer);
-    if (!section_->createSectionFile(renderSpec_, popup)) {
-      LOG_ERR(MODULE_TAG, "Failed to create section file");
-      section_.reset();
-      loan.end();
-      return false;
+    const auto dumpParseFile = [this, &cachePath]() {
+      HalFile file = Storage.open(cachePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
+      if (!file) {
+        LOG_ERR(MODULE_TAG, "Could not open cache file for writing %s", cachePath.c_str());
+        return false;
+      }
+      constexpr auto formatter = BibleVerseFormatter{};
+      serialization::BufferedFileWriter cache{file, IO_BUFFER_SIZE};
+      const serialization::BufferedFileWriterIterator iter{cache};
+      formatter.formatChapter(iter, *bible_, chapterNavigator_.currentBookNumber(), chapterNavigator_.inBookChapter,
+                              bible_->chapterString());
+      cache.flush();
+      file.flush();
+      file.close();
+      LOG_DBG(MODULE_TAG, "Cache written to %s", cachePath.c_str());
+      return true;
+    };
+
+    const auto buildCache = [this, &popup, &dumpParseFile](const bool isPartial) {
+      GfxRenderer::FrameBufferLoan loan(renderer);
+      if (!dumpParseFile()) {
+        return false;
+      }
+      if (!isPartial) {
+        return section_->createSectionFile(renderSpec_, popup);
+      }
+      return section_->startBuild(renderSpec_, popup);
+    };
+
+    if (!cacheComplete) {
+      if (section_->isPartial()) {
+        LOG_DBG(MODULE_TAG, "Partial cache found (%d pages), resuming...", section_->pageCount);
+      } else {
+        LOG_DBG(MODULE_TAG, "Cache not found, building...");
+      }
+      if (!buildCache(section_->isPartial())) {
+        LOG_ERR(MODULE_TAG, "Failed to create section cache file");
+        section_.reset();
+        return false;
+      }
+    } else {
+      LOG_DBG(MODULE_TAG, "Cache found (%d pages)", section_->pageCount);
     }
-    loan.end();
+  }
+
+  if (section_->isBuilding()) {
+    while (!section_->isBuildComplete()) {
+      if (!section_->buildSomeMore(BUILD_PAGES_PER_CHUNK)) {
+        section_.reset();
+        return false;
+      }
+    }
   }
 
   chapterNavigator_.totalPages = static_cast<int>(section_->pageCount);
@@ -265,7 +299,7 @@ bool BibleActivity::layout(const std::filesystem::path& cachePath,
 
 bool BibleActivity::isAtEndOfBook() const { return false; }
 
-bool BibleActivity::loadChapter(const bool clearCache, const BibleToolbox::ChapterNavigator::NavDirection direction) {
+bool BibleActivity::loadChapter(const BibleToolbox::ChapterNavigator::NavDirection direction) {
   section_.reset();
   chapterTitle_.clear();
 
@@ -283,23 +317,6 @@ bool BibleActivity::loadChapter(const bool clearCache, const BibleToolbox::Chapt
 
   const std::filesystem::path cachePath = cacheDir / "cache.html";
 
-  {
-    if (clearCache || !Storage.exists(cachePath.c_str())) {
-      HalFile file = Storage.open(cachePath.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
-      if (!file) {
-        LOG_ERR(MODULE_TAG, "Could not open cache file for writing %s", cachePath.c_str());
-        return false;
-      }
-      constexpr auto formatter = BibleVerseFormatter{};
-      serialization::BufferedFileWriter cache{file, IO_BUFFER_SIZE};
-      const serialization::BufferedFileWriterIterator iter{cache};
-      formatter.formatChapter(iter, *bible_, chapterNavigator_.currentBookNumber(), chapterNavigator_.inBookChapter,
-                              bible_->chapterString());
-      // will flush and file via destructors
-    } else {
-      LOG_DBG(MODULE_TAG, "Loading cache file");
-    }
-  }
   return layout(cachePath, direction);
 }
 
@@ -317,7 +334,7 @@ bool BibleActivity::loadBook() {
   chapterNavigator_.currentBookIndex = config_.bookIndex;
   chapterNavigator_.inBookChapter = config_.chapterNumber;
 
-  return loadChapter(true, BibleToolbox::ChapterNavigator::NavTargetPage{config_.pageNumber});
+  return loadChapter(BibleToolbox::ChapterNavigator::NavTargetPage{config_.pageNumber});
 }
 
 void BibleActivity::renderBook() {
@@ -327,10 +344,15 @@ void BibleActivity::renderBook() {
     const int font_id = renderSpec_.fontId;
     const int x = SETTINGS.screenMargin;
     const int y = x;
-    drawVerses(font_id, x, y);
+    renderPage(font_id, x, y);
   };
 
   if (chapterNavigator_.totalPages > 0) {
+    {
+      auto* fontCacheManager = renderer.getFontCacheManager();
+      auto scope = fontCacheManager->createPrewarmScope();
+      renderVerses();
+    }
     renderVerses();
   } else {
     renderer.drawCenteredText(UI_12_FONT_ID, 300, "No Bible module loaded", true, EpdFontFamily::BOLD);

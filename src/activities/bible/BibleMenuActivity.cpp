@@ -24,7 +24,7 @@ void BibleMenuActivity::buildScreen(UiScreen& screen) {
 
   freeink::ui::ListProps props{
       .items = &rowItems_[0],
-      .count = rowItems_.size(),
+      .count = static_cast<uint16_t>(rowItems_.size()),
       .action = ACTION_ROW,
       .inputMask = freeink::ui::InputTouch,
       .labelText = screen.theme().smallText,
