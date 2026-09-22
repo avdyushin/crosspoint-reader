@@ -1,6 +1,6 @@
 #pragma once
 #include "BaseItemSelectionActivity.h"
-#include "BibleToolbox.h"
+#include "Bible.h"
 
 class BibleBookSelectionActivity final : public BaseItemSelectionActivity<BibleToolbox::Book> {
  public:

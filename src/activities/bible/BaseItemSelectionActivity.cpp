@@ -1,7 +1,7 @@
 #include "BaseItemSelectionActivity.h"
 
+#include "Bible.h"
 #include "BibleChapterSelectionActivity.h"
-#include "BibleToolbox.h"
 #include "components/UITheme.h"
 
 template <HasName Item>

@@ -1,6 +1,6 @@
 add_executable(BibleToolboxTest
         BibleToolboxTest.cpp
-        ${REPO_ROOT}/lib/BibleToolbox/src/BibleToolbox.cpp
+        ${REPO_ROOT}/lib/BibleToolbox/src/Bible.cpp
 )
 
 target_include_directories(BibleToolboxTest PRIVATE

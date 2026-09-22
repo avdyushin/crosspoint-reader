@@ -5,7 +5,7 @@
 #include <string>
 
 #include "BibleVerseFormatter.h"
-#include "lib/BibleToolbox/src/BibleToolbox.h"
+#include "lib/BibleToolbox/src/Bible.h"
 
 using namespace BibleToolbox;
 

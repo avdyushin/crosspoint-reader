@@ -2,11 +2,11 @@
 
 #include <filesystem>
 
+#include "Bible.h"
 #include "BibleChapterSelectionActivity.h"
 #include "BibleConfigStore.h"
 #include "BibleMenuActivity.h"
 #include "BibleSection.h"
-#include "BibleToolbox.h"
 #include "ChapterNavigator.h"
 #include "Epub/ReaderRenderSpec.h"
 #include "activities/Activity.h"

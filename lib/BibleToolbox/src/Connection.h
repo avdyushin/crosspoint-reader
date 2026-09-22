@@ -4,11 +4,6 @@
 #include <filesystem>
 
 namespace BibleToolbox {
-template <typename F>
-concept Transform = requires(F f, std::string_view s) {
-  { f(s) } -> std::same_as<std::string>;
-};
-
 class Connection {
   std::unique_ptr<sqlite3, decltype(&sqlite3_close)> connection{nullptr, sqlite3_close};
 

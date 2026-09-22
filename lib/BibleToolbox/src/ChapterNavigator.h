@@ -4,7 +4,7 @@
 #include <functional>
 #include <variant>
 
-#include "BibleToolbox.h"
+#include "Bible.h"
 
 namespace BibleToolbox {
 class ChapterNavigator {

@@ -38,7 +38,7 @@ class Statement {
 
   [[nodiscard]] bool isReady() const { return statement != nullptr; }
 
-  [[nodiscard]] std::string_view get_string_view(const int column) const {
+  [[nodiscard]] std::string_view getStringView(const int column) const {
     const auto* text = reinterpret_cast<const char*>(sqlite3_column_text(statement.get(), column));
     if (text == nullptr) {
       return {};
@@ -48,8 +48,8 @@ class Statement {
     return {text, static_cast<size_t>(bytes)};
   }
 
-  [[nodiscard]] std::string get_string(const int column) const { return std::string{get_string_view(column)}; }
+  [[nodiscard]] std::string getString(const int column) const { return std::string{getStringView(column)}; }
 
-  [[nodiscard]] int get_int(const int column) const { return sqlite3_column_int(statement.get(), column); }
+  [[nodiscard]] int getInt(const int column) const { return sqlite3_column_int(statement.get(), column); }
 };
 }  // namespace BibleToolbox

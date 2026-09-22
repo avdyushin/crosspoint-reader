@@ -1,6 +1,6 @@
 #pragma once
 
-#include "BibleToolbox.h"
+#include "Bible.h"
 #include "PersistableStore.h"
 
 class BibleConfigStore : public PersistableStore<BibleConfigStore> {

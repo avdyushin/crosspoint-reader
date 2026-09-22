@@ -1,10 +1,10 @@
-#include "BibleToolbox.h"
+#include "Bible.h"
 
 #include <algorithm>
 #include <ranges>
 #include <string_view>
 
-#include "Connection.hpp"
+#include "Connection.h"
 
 namespace {
 auto to_lower_view = [](std::string_view str) {
@@ -77,7 +77,7 @@ Bible::Bible(const std::filesystem::path& path, const char* vfs) {
   if (connection_.open(path, vfs)) {
     constexpr auto verses_by_chapter = "SELECT verse, text FROM verses WHERE book_number = ? AND chapter = ?;";
     if (chapterStatement_.prepare(connection_.get(), verses_by_chapter)) {
-      module_ = fetchInfo(path);
+      info_ = fetchInfo(path);
       books_ = fetchBooks();
     }
   }
@@ -111,10 +111,10 @@ const Book* Bible::operator[](const std::string_view name) const {
   std::vector<Book> books;
   int prefix_sum = 0;
   while (statement.step() != SQLITE_DONE) {
-    const int id = statement.get_int(0);
-    const auto title = statement.get_string(1);
-    const auto alt = statement.get_string(2);
-    const int chapter_count = statement.get_int(3);
+    const int id = statement.getInt(0);
+    const auto title = statement.getString(1);
+    const auto alt = statement.getString(2);
+    const int chapter_count = statement.getInt(3);
     const auto book = Book{.number = static_cast<bookNumber>(id),
                            .name = title,
                            .alt = alt,
@@ -126,7 +126,7 @@ const Book* Bible::operator[](const std::string_view name) const {
   return books;
 }
 
-Module Bible::fetchInfo(const std::filesystem::path& path) const {
+BibleInfo Bible::fetchInfo(const std::filesystem::path& path) const {
   const auto id = path.stem();
   constexpr auto sql = "SELECT name, value FROM info";
   auto statement = Statement();
@@ -135,8 +135,8 @@ Module Bible::fetchInfo(const std::filesystem::path& path) const {
   std::string language;
   std::string chapter_string;
   while (statement.step() != SQLITE_DONE) {
-    const auto name = statement.get_string_view(0);
-    const auto value = statement.get_string(1);
+    const auto name = statement.getStringView(0);
+    const auto value = statement.getString(1);
     if (name == "description") {
       description = value;
     }
@@ -160,8 +160,12 @@ std::vector<Verse> Bible::chapterVerses(const bookNumber book, const chapterNumb
                                         const bool excludeStrongsNumbers = true) const {
   std::vector<Verse> verses;
   chapterStatement_.reset();
-  auto _ = chapterStatement_.bind(1, book);
-  auto _ = chapterStatement_.bind(2, chapter);
+  {
+    auto _ = chapterStatement_.bind(1, book);
+  }
+  {
+    auto _ = chapterStatement_.bind(2, chapter);
+  }
   auto transform = [excludeStrongsNumbers](const std::string_view text) {
     std::string result{text};
     process_verse_text_in_place(result, excludeStrongsNumbers);
@@ -169,9 +173,10 @@ std::vector<Verse> Bible::chapterVerses(const bookNumber book, const chapterNumb
   };
   while (chapterStatement_.step() == SQLITE_ROW) {
     const auto verse = Verse{
+        .book = book,
         .chapter = static_cast<chapterNumber>(chapter),
-        .verse = static_cast<chapterNumber>(chapterStatement_.get_int(0)),
-        .text = transform(chapterStatement_.get_string(1)),
+        .verse = static_cast<chapterNumber>(chapterStatement_.getInt(0)),
+        .text = transform(chapterStatement_.getString(1)),
     };
     verses.push_back(verse);
   }

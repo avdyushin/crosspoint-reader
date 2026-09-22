@@ -1,6 +1,6 @@
 #include "BibleActivity.h"
 
-#include <BibleToolbox.h>
+#include <Bible.h>
 #include <sys/stat.h>
 
 #include <filesystem>

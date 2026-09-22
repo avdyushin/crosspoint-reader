@@ -1,11 +1,11 @@
 #pragma once
-#include <BibleToolbox.h>
+#include <VerseProvider.h>
 
 #include <format>
 
 class BibleVerseFormatter {
  public:
-  template <typename Output, BibleToolbox::BibleVersesProvider T>
+  template <typename Output, BibleToolbox::VersesProvider T>
     requires std::output_iterator<Output, const char&>
   void formatChapter(Output output, const T& provider, BibleToolbox::bookNumber book,
                      BibleToolbox::chapterNumber chapter, std::string_view chapterString) const {
