@@ -9,7 +9,7 @@ class BibleVerseFormatter {
     requires std::output_iterator<Output, const char&>
   void formatChapter(Output output, const T& provider, BibleToolbox::bookNumber book,
                      BibleToolbox::chapterNumber chapter, std::string_view chapterString) const {
-    const auto verses = provider.chapterVerses(book, chapter, true);
+    const auto verses = provider.versesInChapter(book, chapter, true);
     std::format_to(output, "<html><body>\n");
     if (chapter == 1) {
       std::format_to(output, "<h1>{}</h1>\n", provider[book]->name);

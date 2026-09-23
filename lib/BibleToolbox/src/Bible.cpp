@@ -80,6 +80,23 @@ Bible::Bible(const std::filesystem::path& path, const char* vfs) {
       info_ = fetchInfo(path);
       books_ = fetchBooks();
     }
+
+    constexpr auto verses_between =
+        "SELECT verse, text FROM verses WHERE book_number = ? AND chapter = ? AND verse BETWEEN ? AND ?;";
+    chapterVersesBetween_.prepare(connection_.get(), verses_between);
+
+    constexpr auto verses_by_location = R"SQL(
+        -- 1. Tail end of the start chapter
+        SELECT chapter, verse, text FROM verses WHERE book_number = ? AND chapter = ? AND verse >= ?
+        UNION ALL
+        -- 2. Full chapters in between
+        SELECT chapter, verse, text FROM verses WHERE book_number = ? AND chapter > ? AND chapter < ?
+        UNION ALL
+        -- 3. Head end of the final chapter
+        SELECT chapter, verse, text FROM verses WHERE book_number = ? AND chapter = ? AND verse <= ?
+        ORDER BY chapter, verse;
+      )SQL";
+    locationStatement_.prepare(connection_.get(), verses_by_location);
   }
 }
 
@@ -156,8 +173,42 @@ BibleInfo Bible::fetchInfo(const std::filesystem::path& path) const {
   };
 }
 
-std::vector<Verse> Bible::chapterVerses(const bookNumber book, const chapterNumber chapter,
-                                        const bool excludeStrongsNumbers = true) const {
+std::vector<Verse> Bible::versesInChapter(const bookNumber book, const chapterNumber chapter,
+                                          const verseNumber startVerse, const verseNumber endVerse,
+                                          const bool excludeStrongsNumbers) const {
+  std::vector<Verse> verses;
+  chapterVersesBetween_.reset();
+  {
+    auto _ = chapterVersesBetween_.bind(1, book);
+  }
+  {
+    auto _ = chapterVersesBetween_.bind(2, chapter);
+  }
+  {
+    auto _ = chapterVersesBetween_.bind(3, startVerse);
+  }
+  {
+    auto _ = chapterVersesBetween_.bind(4, endVerse);
+  }
+  auto transform = [excludeStrongsNumbers](const std::string_view text) {
+    std::string result{text};
+    process_verse_text_in_place(result, excludeStrongsNumbers);
+    return result;
+  };
+  while (chapterVersesBetween_.step() == SQLITE_ROW) {
+    const auto verse = Verse{
+        .book = book,
+        .chapter = static_cast<chapterNumber>(chapter),
+        .verse = static_cast<verseNumber>(chapterVersesBetween_.getInt(0)),
+        .text = transform(chapterVersesBetween_.getString(1)),
+    };
+    verses.push_back(verse);
+  }
+  return verses;
+}
+
+std::vector<Verse> Bible::versesInChapter(const bookNumber book, const chapterNumber chapter,
+                                          const bool excludeStrongsNumbers = true) const {
   std::vector<Verse> verses;
   chapterStatement_.reset();
   {
@@ -175,8 +226,65 @@ std::vector<Verse> Bible::chapterVerses(const bookNumber book, const chapterNumb
     const auto verse = Verse{
         .book = book,
         .chapter = static_cast<chapterNumber>(chapter),
-        .verse = static_cast<chapterNumber>(chapterStatement_.getInt(0)),
+        .verse = static_cast<verseNumber>(chapterStatement_.getInt(0)),
         .text = transform(chapterStatement_.getString(1)),
+    };
+    verses.push_back(verse);
+  }
+  return verses;
+}
+
+std::vector<Verse> Bible::versesByLocation(const Location& location, const bool excludeStrongsNumbers) const {
+  if (location.range.startChapter > location.range.endChapter) {
+    return {};
+  }
+  if (location.range.startChapter == location.range.endChapter) {
+    if (location.range.startVerse > location.range.endVerse) {
+      return {};
+    }
+    return versesInChapter(location.book, location.range.startChapter, location.range.startVerse,
+                           location.range.endVerse, excludeStrongsNumbers);
+  }
+  std::vector<Verse> verses;
+  locationStatement_.reset();
+  {
+    auto _ = locationStatement_.bind(1, location.book);
+  }
+  {
+    auto _ = locationStatement_.bind(2, location.range.startChapter);
+  }
+  {
+    auto _ = locationStatement_.bind(3, location.range.startVerse);
+  }
+  {
+    auto _ = locationStatement_.bind(4, location.book);
+  }
+  {
+    auto _ = locationStatement_.bind(5, location.range.startChapter);
+  }
+  {
+    auto _ = locationStatement_.bind(6, location.range.endChapter);
+  }
+  {
+    auto _ = locationStatement_.bind(7, location.book);
+  }
+  {
+    auto _ = locationStatement_.bind(8, location.range.endChapter);
+  }
+  {
+    auto _ = locationStatement_.bind(9, location.range.endVerse);
+  }
+  auto transform = [excludeStrongsNumbers](const std::string_view text) {
+    std::string result{text};
+    process_verse_text_in_place(result, excludeStrongsNumbers);
+    return result;
+  };
+  while (locationStatement_.step() == SQLITE_ROW) {
+    const auto verse = Verse{
+        .book = location.book,
+        .chapter = static_cast<chapterNumber>(locationStatement_.getInt(0)),
+        .verse = static_cast<verseNumber>(locationStatement_.getInt(1)),
+        .text = transform(locationStatement_.getString(2)),
     };
     verses.push_back(verse);
   }
