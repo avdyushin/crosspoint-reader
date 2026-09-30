@@ -16,9 +16,8 @@ class CssParser;
 
 class BibleSection {
   GfxRenderer& renderer;
-  std::filesystem::path cacheDir;
+  std::filesystem::path inputFilePath;
   std::filesystem::path cacheFilePath;
-  std::filesystem::path parseFilePath;
   HalFile file;
   std::string language;
 
@@ -83,8 +82,8 @@ class BibleSection {
 
   // Constructor and destructor are out-of-line: BuildContext holds a unique_ptr to the
   // forward-declared ChapterHtmlSlimParser, whose full definition is only visible in the .cpp.
-  explicit BibleSection(const std::filesystem::path& cacheDir, const std::string& language, int bookNumber,
-                        int chapterNumber, GfxRenderer& renderer);
+  explicit BibleSection(std::filesystem::path inputFile, std::filesystem::path cacheFile, std::string language,
+                        GfxRenderer& renderer);
   ~BibleSection();
   bool loadSectionFile(const ReaderRenderSpec& spec);
   bool clearCache() const;

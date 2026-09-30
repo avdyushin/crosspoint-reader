@@ -6,7 +6,6 @@
 #include <Serialization.h>
 
 #include <filesystem>
-#include <format>
 
 #include "Epub/Page.h"
 #include "Epub/hyphenation/Hyphenator.h"
@@ -71,13 +70,12 @@ constexpr uint32_t HEADER_SIZE = sizeof(uint8_t) + sizeof(int) + sizeof(float) +
 
 // Out-of-line so the unique_ptr<ChapterHtmlSlimParser> in BuildContext can be
 // constructed/destroyed where the parser's full definition is visible.
-BibleSection::BibleSection(const std::filesystem::path& cacheDir, const std::string& language, const int bookNumber,
-                           const int chapterNumber, GfxRenderer& renderer)
+BibleSection::BibleSection(std::filesystem::path inputFile, std::filesystem::path cacheFile, std::string language,
+                           GfxRenderer& renderer)
     : renderer(renderer),
-      cacheDir(cacheDir),
-      cacheFilePath(cacheDir / std::format("{}_{}.bin", std::to_string(bookNumber), std::to_string(chapterNumber))),
-      parseFilePath(cacheDir / "cache.html"),
-      language(language) {}
+      inputFilePath(std::move(inputFile)),
+      cacheFilePath(std::move(cacheFile)),
+      language(std::move(language)) {}
 
 // Suspend any in-progress build so every section.reset() / navigation / sleep path
 // persists the pages already laid out as a partial .bin instead of discarding them
@@ -369,7 +367,7 @@ bool BibleSection::startBuild(const ReaderRenderSpec& spec, const std::function<
   // ctx->htmlPath = htmlPath;
   // ctx->tmpHtmlPath = tmpHtmlPath;
   // ctx->parsePath = htmlCached ? htmlPath : tmpHtmlPath;
-  ctx->parsePath = parseFilePath;
+  ctx->parsePath = inputFilePath;
 
   // Derive the content base directory and image cache path prefix for the parser
   // const size_t lastSlash = localPath.find_last_of('/');

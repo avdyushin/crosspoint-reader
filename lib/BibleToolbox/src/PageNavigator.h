@@ -5,26 +5,30 @@
 #include <variant>
 
 #include "Bible.h"
+#include "BookNavigable.h"
 
 namespace BibleToolbox {
-class ChapterNavigator {
+struct NavFirstPage {};
+struct NavLastPage {};
+struct NavTargetPage {
+  int page;
+};
+
+using NavDirection = std::variant<NavTargetPage, NavFirstPage, NavLastPage>;
+
+template <BookNavigable T>
+class PageNavigator {
   int currentPage_ = 0;
+  T& navigator_;
 
  public:
-  struct NavFirstPage {};
-  struct NavLastPage {};
-  struct NavTargetPage {
-    int page;
-  };
-
-  using NavDirection = std::variant<NavTargetPage, NavFirstPage, NavLastPage>;
-
   int totalPages = 0;
   int inBookChapter = START_CHAPTER_NUMBER;
   int currentBookIndex = 0;
-  std::span<const Book> books;
   std::function<void(int, int, NavDirection)> onChapterChanged;
   std::function<void(int)> onPageChanged;
+
+  explicit PageNavigator(T& navigator) : navigator_(navigator) {}
 
   [[nodiscard]] int getCurrentPage() const { return currentPage_; }
   void setCurrentPage(const int currentPage) {
@@ -38,14 +42,18 @@ class ChapterNavigator {
     if (totalPages == 0) {
       return 0.f;
     }
-    const auto globalChapter = currentBook()->prefixSum + (inBookChapter - 1);
-    const auto thisChapter = static_cast<float>(currentPage_) / static_cast<float>(totalPages);
-    return (static_cast<float>(globalChapter) + thisChapter) * 100.f / static_cast<float>(totalChapters());
+    const auto thisChapter = static_cast<float>(getCurrentPage()) / static_cast<float>(totalPages);
+    return (static_cast<float>(navigator_.globalChapter(currentBookIndex, inBookChapter)) + thisChapter) * 100.f /
+           static_cast<float>(navigator_.totalChapters());
   }
 
-  [[nodiscard]] const Book* currentBook() const { return &books[currentBookIndex]; }
+  [[nodiscard]] std::string_view currentBookName() const { return navigator_.bookName(currentBookIndex); }
 
-  [[nodiscard]] int currentBookNumber() const { return currentBook()->number; }
+  [[nodiscard]] int currentBookNumber() const { return navigator_.bookNumber(currentBookIndex); }
+
+  [[nodiscard]] int totalBooks() const { return navigator_.totalBooks(); }
+
+  [[nodiscard]] int totalChapters() const { return navigator_.totalChapters(); }
 
   bool skipPages(const int amount) {
     const int target_page = std::clamp(currentPage_ + amount, 0, totalPages - 1);
@@ -83,11 +91,11 @@ class ChapterNavigator {
   }
 
   void checkNextChapter() {
-    if (inBookChapter + 1 <= totalChaptersInBook()) {
-      inBookChapter++;
+    if (inBookChapter + 1 <= navigator_.chaptersCount(currentBookIndex)) {
+      ++inBookChapter;
       onChapterChanged(currentBookIndex, inBookChapter, NavFirstPage{});
-    } else if (currentBookIndex + 1 < books.size()) {
-      currentBookIndex++;
+    } else if (currentBookIndex + 1 < navigator_.totalBooks()) {
+      ++currentBookIndex;
       inBookChapter = START_CHAPTER_NUMBER;
       onChapterChanged(currentBookIndex, inBookChapter, NavFirstPage{});
     }
@@ -95,17 +103,13 @@ class ChapterNavigator {
 
   void checkPreviousChapter() {
     if (inBookChapter > START_CHAPTER_NUMBER) {
-      inBookChapter--;
+      --inBookChapter;
       onChapterChanged(currentBookIndex, inBookChapter, NavLastPage{});
     } else if (currentBookIndex > 0) {
-      currentBookIndex--;
-      inBookChapter = totalChaptersInBook();
+      --currentBookIndex;
+      inBookChapter = navigator_.chaptersCount(currentBookIndex);
       onChapterChanged(currentBookIndex, inBookChapter, NavLastPage{});
     }
   }
-
-  [[nodiscard]] int totalChaptersInBook() const { return currentBook()->chaptersCount; }
-
-  [[nodiscard]] int totalChapters() const { return books.back().prefixSum + books.back().chaptersCount; }
 };
 }  // namespace BibleToolbox
