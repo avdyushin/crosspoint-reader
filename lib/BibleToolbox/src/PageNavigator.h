@@ -9,21 +9,13 @@
 #include "BookPosition.h"
 
 namespace BibleToolbox {
-struct NavFirstPage {};
-struct NavLastPage {};
-struct NavTargetPage {
-  int page;
-};
-
-using NavDirection = std::variant<NavTargetPage, NavFirstPage, NavLastPage>;
-
 template <BookNavigable T>
 class PageNavigator {
   T& navigator_;
 
  public:
-  using Callback = std::function<void(const BookPosition& oldPosition, const BookPosition& newPosition,
-                                      PositionChange changes, NavDirection direction)>;
+  using Callback =
+      std::function<void(const BookPosition& oldPosition, const BookPosition& newPosition, PositionChange changes)>;
 
   int totalPages = 0;
   Callback callback;
@@ -82,15 +74,7 @@ class PageNavigator {
     if (const auto changes = changedFields(oldPosition, newPosition); changes != PositionChange::None) {
       position_ = newPosition;
       if (callback) {
-        NavDirection direction;
-        if (newPosition.book > oldPosition.book || newPosition.chapter > oldPosition.chapter) {
-          direction = NavFirstPage{};
-        } else if (newPosition.book < oldPosition.book || newPosition.chapter < oldPosition.chapter) {
-          direction = NavLastPage{};
-        } else {
-          direction = NavTargetPage{newPosition.page};
-        }
-        callback(oldPosition, newPosition, changes, direction);
+        callback(oldPosition, newPosition, changes);
       }
       return true;
     }
@@ -147,7 +131,7 @@ class PageNavigator {
 
   void checkNextChapter() {
     if (position_.chapter + 1 <= navigator_.chaptersCount(position_.book)) {
-      setChapter(position_.chapter + 1);
+      setPosition(BookPosition{.book = position_.book, .chapter = position_.chapter + 1, .page = 0});
     } else if (position_.book + 1 < navigator_.totalBooks()) {
       setPosition(BookPosition{.book = position_.book + 1, .chapter = START_CHAPTER_NUMBER, .page = 0});
     }
@@ -155,10 +139,10 @@ class PageNavigator {
 
   void checkPreviousChapter() {
     if (position_.chapter > START_CHAPTER_NUMBER) {
-      setChapter(position_.chapter - 1);
+      setPosition(BookPosition{.book = position_.book, .chapter = position_.chapter - 1, .page = 0});
     } else if (position_.book > 0) {
-      setPosition(
-          BookPosition{.book = position_.book - 1, .chapter = navigator_.chaptersCount(position_.book - 1), .page = 0});
+      auto lastChapter = navigator_.chaptersCount(position_.book - 1);
+      setPosition(BookPosition{.book = position_.book - 1, .chapter = lastChapter, .page = 0});
     }
   }
 

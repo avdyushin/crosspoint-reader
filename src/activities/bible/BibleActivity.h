@@ -14,6 +14,13 @@
 #include "activities/reader/ReaderActivity.h"
 
 class BibleActivity final : public ReaderActivity {
+  struct TargetPage {
+    int page;
+  };
+  struct LastPage {};
+
+  using PageNavigation = std::variant<TargetPage, LastPage>;
+
   std::unique_ptr<BibleSection> section_;
   ReaderRenderSpec renderSpec_{};
   std::unique_ptr<BibleToolbox::Bible> bible_;
@@ -32,10 +39,12 @@ class BibleActivity final : public ReaderActivity {
   bool isAtEndOfBook() const override;
   void onReturnFromEndOfBook() override {}
   void renderPage(int font_id, int x, int y) const;
-  bool layout(const std::filesystem::path& cacheDir, BibleToolbox::NavDirection direction);
+  bool layout(const std::filesystem::path& cacheDir, PageNavigation pageNavigation);
   void renderStatusBar() const;
-  bool loadChapter(BibleToolbox::NavDirection direction);
+  bool loadChapter(PageNavigation pageNavigation);
   void handleMenuAction(BibleMenuActivity::MenuItem menuItem);
+  void onPositionChanged(BibleToolbox::BookPosition oldPosition, BibleToolbox::BookPosition newPosition,
+                         BibleToolbox::PositionChange changes);
 
  public:
   BibleActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
