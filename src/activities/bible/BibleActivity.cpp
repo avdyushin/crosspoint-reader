@@ -111,7 +111,7 @@ void BibleActivity::onPositionChanged(const BibleToolbox::BookPosition oldPositi
   }
   if (BibleToolbox::hasChange(changes, BibleToolbox::PositionChange::Book | BibleToolbox::PositionChange::Chapter)) {
     RECENT_BOOKS.updateBook(bookPath, getBookTitle(), chapterTitle_, "");
-    PageNavigation pageNavigation = TargetPage{newPosition.page};
+    StartPagePosition pageNavigation = TargetPage{newPosition.page};
     if (newPosition.book < oldPosition.book || newPosition.chapter < oldPosition.chapter) {
       pageNavigation = LastPage{};
     }
@@ -207,7 +207,7 @@ void BibleActivity::renderStatusBar() const {
                     chapterNavigator_.totalPages, title);
 }
 
-bool BibleActivity::layout(const std::filesystem::path& cacheDir, const PageNavigation pageNavigation) {
+bool BibleActivity::layout(const std::filesystem::path& cacheDir, const StartPagePosition startPagePosition) {
   if (!section_) {
     auto cacheFile = cacheDir / "cache.html";
     auto binFile =
@@ -283,9 +283,9 @@ bool BibleActivity::layout(const std::filesystem::path& cacheDir, const PageNavi
     return false;
   }
 
-  if (const auto* target = std::get_if<TargetPage>(&pageNavigation)) {
+  if (const auto* target = std::get_if<TargetPage>(&startPagePosition)) {
     chapterNavigator_.setPage(target->page);
-  } else if (std::holds_alternative<LastPage>(pageNavigation)) {
+  } else if (std::holds_alternative<LastPage>(startPagePosition)) {
     chapterNavigator_.setPage(chapterNavigator_.totalPages - 1);
   }
   return true;
@@ -293,7 +293,7 @@ bool BibleActivity::layout(const std::filesystem::path& cacheDir, const PageNavi
 
 bool BibleActivity::isAtEndOfBook() const { return false; }
 
-bool BibleActivity::loadChapter(const PageNavigation pageNavigation) {
+bool BibleActivity::loadChapter(const StartPagePosition startPagePosition) {
   section_.reset();
   chapterTitle_.clear();
 
@@ -309,7 +309,7 @@ bool BibleActivity::loadChapter(const PageNavigation pageNavigation) {
     Storage.mkdir(cacheDir.c_str());
   }
 
-  return layout(cacheDir, pageNavigation);
+  return layout(cacheDir, startPagePosition);
 }
 
 bool BibleActivity::loadBook() {
