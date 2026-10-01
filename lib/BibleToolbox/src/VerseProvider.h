@@ -13,6 +13,7 @@ concept VersesProvider =
     requires(const T database, bookNumber book, chapterNumber chapter, Location& location, bool excludeStrongsNumbers) {
       { database.versesInChapter(book, chapter, excludeStrongsNumbers) } -> std::same_as<std::vector<Verse>>;
       { database.versesByLocation(location, excludeStrongsNumbers) } -> std::same_as<std::vector<Verse>>;
+      { database.locationToString(location) } -> std::convertible_to<std::string>;
       { database.operator[](book) } -> std::same_as<const Book*>;
     };
 }  // namespace BibleToolbox

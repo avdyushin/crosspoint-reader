@@ -1,9 +1,6 @@
 #include "BibleMenuActivity.h"
 
-#include "BibleActivity.h"
 #include "components/UITheme.h"
-
-namespace {}
 
 void BibleMenuActivity::render(RenderLock&&) {
   renderer.clearScreen();
@@ -17,10 +14,11 @@ void BibleMenuActivity::buildScreen(UiScreen& screen) {
   const auto& metrics = UITheme::getInstance().getMetrics();
   const Rect safe = UITheme::getInstance().getScreenSafeArea(renderer, true, false);
   // Content: the safe area minus the header band GUI.drawHeader paints.
-  screen.setContentMarginFromScreen(freeink::ui::Insets{
-      static_cast<int16_t>(safe.y + metrics.topPadding + metrics.headerHeight),
-      static_cast<int16_t>(renderer.getScreenWidth() - (safe.x + safe.width)),
-      static_cast<int16_t>(renderer.getScreenHeight() - (safe.y + safe.height)), static_cast<int16_t>(safe.x)});
+  screen.setContentMarginFromScreen(
+      freeink::ui::Insets{.top = static_cast<int16_t>(safe.y + metrics.topPadding + metrics.headerHeight),
+                          .right = static_cast<int16_t>(renderer.getScreenWidth() - (safe.x + safe.width)),
+                          .bottom = static_cast<int16_t>(renderer.getScreenHeight() - (safe.y + safe.height)),
+                          .left = static_cast<int16_t>(safe.x)});
 
   freeink::ui::ListProps props{
       .items = &rowItems_[0],
@@ -32,13 +30,14 @@ void BibleMenuActivity::buildScreen(UiScreen& screen) {
   };
   props.labelText.maxLines = 2;
 
-  const std::string chapter = std::to_string(currentChapterNumber_);
-  // const auto bible = BibleContext::activeBible.load(std::memory_order_acquire);
-  // const std::string_view book = bible->books()[currentBookName_].name;
+  const std::string chapter = std::to_string(config_.currentChapterNumber);
+  const std::string day = std::to_string(config_.readingDay);
 
-  rowItems_[MODULE].value = currentModuleId_.data();
-  rowItems_[BOOK].value = currentBookName_.data();
+  rowItems_[MODULE].value = config_.currentModuleId.data();
+  rowItems_[BOOK].value = config_.currentBookName.data();
   rowItems_[CHAPTER].value = chapter.c_str();
+  rowItems_[READING_PLAN].value = config_.readingPlanId.data();
+  rowItems_[READING_DAY].value = day.c_str();
 
   syncListViewport(screen, props);
   screen.list(props);

@@ -290,4 +290,32 @@ std::vector<Verse> Bible::versesByLocation(const Location& location, const bool 
   }
   return verses;
 }
+
+std::string Bible::locationToString(const Location& location) const {
+  const auto& [startChapter, startVerse, endChapter, endVerse] = location.range;
+
+  std::string result = (*this)[location.book]->alt;
+  result += ' ';
+  result += std::to_string(startChapter);
+
+  result += ':';
+  result += std::to_string(startVerse);
+
+  const bool chapterChanged = startChapter != endChapter;
+  const bool verseChanged = startVerse != endVerse;
+
+  if (chapterChanged || verseChanged) {
+    result += '-';
+
+    if (chapterChanged) {
+      result += std::to_string(endChapter);
+      result += ':';
+      result += std::to_string(endVerse);
+    } else {
+      result += std::to_string(endVerse);
+    }
+  }
+
+  return result;
+}
 }  // namespace BibleToolbox

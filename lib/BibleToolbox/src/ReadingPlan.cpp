@@ -19,9 +19,8 @@ ReadingPlan::ReadingPlan(const std::filesystem::path& path, const char* vfs) {
 
 ReadingPlanInfo ReadingPlan::fetchInfo(const std::filesystem::path& path) const {
   const auto id = path.stem();
-  constexpr auto sql = "SELECT name, value FROM info";
   auto statement = Statement();
-  statement.prepare(connection_.get(), sql);
+  statement.prepare(connection_.get(), "SELECT name, value FROM info");
   std::string description;
   while (statement.step() != SQLITE_DONE) {
     const auto name = statement.getStringView(0);
@@ -31,10 +30,18 @@ ReadingPlanInfo ReadingPlan::fetchInfo(const std::filesystem::path& path) const 
       break;
     }
   }
+  statement.reset();
+  statement.prepare(connection_.get(), "SELECT COUNT(DISTINCT day) FROM reading_plan");
+  int daysCount{};
+  while (statement.step() == SQLITE_ROW) {
+    daysCount = statement.getInt(0);
+    break;
+  }
   return {
       .id = std::string(id),
       .description = description,
       .path = path,
+      .daysCount = daysCount,
   };
 }
 

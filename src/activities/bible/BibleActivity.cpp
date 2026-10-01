@@ -1,59 +1,41 @@
 #include "BibleActivity.h"
 
-#include <Bible.h>
-#include <sys/stat.h>
-
-#include <filesystem>
 #include <ranges>
 
-#include "../reader/ReaderUtils.h"
 #include "BibleBookSelectionActivity.h"
-#include "BibleChapterSelectionActivity.h"
-#include "BibleConfigStore.h"
-#include "BibleMenuActivity.h"
-#include "BufferedFile.h"
 #include "BufferedFileWriterIterator.h"
 #include "CrossPointState.h"
-#include "Epub/Page.h"
-#include "Epub/parsers/ChapterHtmlSlimParser.h"
-#include "FontCacheManager.h"
-#include "I18n.h"
-#include "I18nKeys.h"
+#include "ReadingPlan.h"
+#include "ReadingPlanActivity.h"
 #include "RecentBooksStore.h"
-#include "SdCardFontSystem.h"
 #include "activities/home/FileBrowserActivity.h"
-#include "components/UITheme.h"
-#include "fontIds.h"
 #include "sqlite3_hal.h"
 #include "util/BibleVerseFormatter.h"
 
 namespace {
 constexpr auto MODULE_TAG = "BIBLE";
-constexpr size_t IO_BUFFER_SIZE = 4096;  // 4k in sync with BUILD_IO_BUFFER_SIZE
-constexpr auto BUILD_PAGES_PER_CHUNK = 8;
-}  // namespace
+}
 
-BibleActivity::BibleActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
-                             const bool allowFastInitialRefresh)
-    : ReaderActivity("BibleActivity", renderer, mappedInput, std::move(bookPath), allowFastInitialRefresh),
-      config_(BibleConfigStore()) {}
+std::filesystem::path BibleActivity::getCacheDir() const {
+  return std::filesystem::path("/") / ".bible" / std::string(bible_->id());
+}
 
-void BibleActivity::onEnter() {
-  // Ignore ReaderActivity::onEnter() call to keep recents intact
-  // NOLINTNEXTLINE
-  Activity::onEnter();
+std::string BibleActivity::getCacheFileName() const { return getCacheDir() / "chapter.html"; }
 
-  sdFontSystem.ensureLoaded(renderer);
-  applyInitialOrientation();
+std::string BibleActivity::getBinFileName() const {
+  return getCacheDir() /
+         std::format("{}_{}.bin", chapterNavigator_.currentBookNumber(), chapterNavigator_.getChapter());
+}
 
-  const auto viewportWidth = renderer.getScreenWidth() - SETTINGS.screenMargin * 2;
-  const auto viewportHeight = renderer.getScreenHeight() - SETTINGS.screenMargin * 2;
+std::string BibleActivity::getChapterTitle() const {
+  return std::format("{} {}", chapterNavigator_.currentBookName(), chapterNavigator_.getChapter());
+}
 
-  renderSpec_ = SETTINGS.readerRenderSpec(viewportWidth, viewportHeight);
+std::string BibleActivity::getBookTitle() const { return std::string(bible_->description()); }
 
-  if (!Storage.exists("/.bible")) {
-    Storage.mkdir("/.bible");
-  }
+std::string BibleActivity::getLanguage() const { return std::string(bible_->language()); }
+
+bool BibleActivity::loadBook() {
   if (!config_.loadFromFile()) {
     LOG_INF(MODULE_TAG, "Could not load configuration file");
   }
@@ -63,36 +45,45 @@ void BibleActivity::onEnter() {
     LOG_INF(MODULE_TAG, "No module path provided, using last opened: %s", bookPath.c_str());
   }
 
-  if (loadBook()) {
-    APP_STATE.openEpubPath = bookPath;
-    auto _ = APP_STATE.saveToFile();
+  bible_.reset();
+  bible_ = std::make_shared<BibleToolbox::Bible>(bookPath, HAL_VFS_NAME);
+  config_.biblePath = bookPath;  // Save loaded module
 
-    chapterNavigator_.callback =
-        [this](const BibleToolbox::BookPosition oldPosition, const BibleToolbox::BookPosition newPosition,
-               const BibleToolbox::PositionChange changes) { onPositionChanged(oldPosition, newPosition, changes); };
+  if (bible_->books().empty()) {
+    LOG_INF(MODULE_TAG, "Couldn't load Bible module (no books found)");
+    config_.clear();  // Reset unloadable module
+    return false;
   }
-  requestUpdate();
+
+  APP_STATE.openEpubPath = bookPath;
+  auto _ = APP_STATE.saveToFile();
+
+  bibleNavigator_.configureWith(bible_->books());
+  if (!chapterNavigator_.setPosition(BibleToolbox::BookPosition{
+          .book = config_.bookIndex, .chapter = config_.chapterNumber, .page = config_.pageNumber})) {
+    LOG_INF(MODULE_TAG, "Loaded book position is out of bounds!");
+  }
+
+  return loadChapter(TargetPage{config_.pageNumber});
 }
 
-void BibleActivity::onExit() { ReaderActivity::onExit(); }
+bool BibleActivity::loadChapter(const StartPagePosition startPagePosition) {
+  section_.reset();
 
-void BibleActivity::loop() {
-  ReaderActivity::loop();
+  // Update recents
+  RECENT_BOOKS.addBook(bookPath, getBookTitle(), getChapterTitle(), "");
 
-  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    auto moduleId = bible_ == nullptr ? "None" : std::string(bible_->id());
-    auto bookName = bible_ == nullptr ? "-" : std::string(chapterNavigator_.currentBookName());
-    auto menu =
-        std::make_unique<BibleMenuActivity>(renderer, mappedInput, moduleId, bookName, chapterNavigator_.getChapter());
-    auto handler = [this](const ActivityResult& result) {
-      const auto& menuResult = std::get<MenuResult>(result.data);
-      if (!result.isCancelled) {
-        handleMenuAction(static_cast<BibleMenuActivity::MenuItem>(menuResult.action));
-      }
-      requestUpdate();
-    };
-    startActivityForResult(std::move(menu), handler);
+  if (!Storage.exists(getCacheDir().c_str())) {
+    Storage.mkdir(getCacheDir().c_str());
   }
+
+  return layout(startPagePosition);
+}
+
+void BibleActivity::formatChapter(const serialization::BufferedFileWriterIterator iter) {
+  constexpr auto formatter = BibleVerseFormatter{};
+  formatter.formatChapter(iter, *bible_, chapterNavigator_.currentBookNumber(), chapterNavigator_.getChapter(),
+                          bible_->chapterString());
 }
 
 void BibleActivity::onPositionChanged(const BibleToolbox::BookPosition oldPosition,
@@ -110,12 +101,40 @@ void BibleActivity::onPositionChanged(const BibleToolbox::BookPosition oldPositi
     config_.pageNumber = newPosition.page;
   }
   if (BibleToolbox::hasChange(changes, BibleToolbox::PositionChange::Book | BibleToolbox::PositionChange::Chapter)) {
-    RECENT_BOOKS.updateBook(bookPath, getBookTitle(), chapterTitle_, "");
+    RECENT_BOOKS.updateBook(bookPath, getBookTitle(), getChapterTitle(), "");
     StartPagePosition pageNavigation = TargetPage{newPosition.page};
     if (newPosition.book < oldPosition.book || newPosition.chapter < oldPosition.chapter) {
       pageNavigation = LastPage{};
     }
     this->loadChapter(pageNavigation);
+  }
+}
+
+void BibleActivity::loop() {
+  ReaderActivity::loop();
+
+  if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    const auto moduleId = bible_ == nullptr ? "None" : std::string(bible_->id());
+    const auto bookName = bible_ == nullptr ? "-" : std::string(chapterNavigator_.currentBookName());
+    const std::filesystem::path readingPlanPath = config_.readingPlanPath;
+    const auto readingPlanId = readingPlanPath.has_filename() ? readingPlanPath.stem().string() : "None";
+    const auto readingDay = max(1, config_.readingPlanDay);
+    const BibleMenuActivity::Config config{
+        .currentModuleId = moduleId,
+        .currentBookName = bookName,
+        .currentChapterNumber = chapterNavigator_.getChapter(),
+        .readingPlanId = readingPlanId,
+        .readingDay = readingDay,
+    };
+    auto menu = std::make_unique<BibleMenuActivity>(renderer, mappedInput, config);
+    auto handler = [this](const ActivityResult& result) {
+      const auto& menuResult = std::get<MenuResult>(result.data);
+      if (!result.isCancelled) {
+        handleMenuAction(static_cast<BibleMenuActivity::MenuItem>(menuResult.action));
+      }
+      requestUpdate();
+    };
+    startActivityForResult(std::move(menu), handler);
   }
 }
 
@@ -129,7 +148,7 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
       auto handler = [this](const ActivityResult& result) {
         if (!result.isCancelled) {
           const auto& [path] = std::get<FilePathResult>(result.data);
-          LOG_DBG(MODULE_TAG, "Selected module path = %s", path.c_str());
+          LOG_DBG(MODULE_TAG, "Selected module path = '%s'", path.c_str());
           bookPath = path;
           loadBook();
         }
@@ -158,7 +177,7 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
       startActivityForResult(std::move(menu), handler);
       break;
     }
-    case BibleMenuActivity::CHAPTER:
+    case BibleMenuActivity::CHAPTER: {
       const auto chapterCount = chapterNavigator_.chapterCount();
       const auto chapterString = bible_->chapterString();
       chapterListCache_.clear();
@@ -185,185 +204,33 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
       };
       startActivityForResult(std::move(menu), handler);
       break;
-  }
-}
-
-void BibleActivity::renderPage(const int font_id, const int x, const int y) const {
-  if (const auto page = section_->loadPage(chapterNavigator_.getPage())) {
-    page->render(renderer, font_id, x, y);
-  } else {
-    LOG_ERR(MODULE_TAG, "Failed to load page from storage");
-    section_->abandonBuild();
-    auto _ = section_->clearCache();
-  }
-}
-
-void BibleActivity::renderStatusBar() const {
-  std::string title;
-  if (SETTINGS.statusBarSpec().showsTitle()) {
-    title = chapterTitle_;
-  }
-  GUI.drawStatusBar(renderer, chapterNavigator_.progress(), chapterNavigator_.getPage() + 1,
-                    chapterNavigator_.totalPages, title);
-}
-
-bool BibleActivity::layout(const std::filesystem::path& cacheDir, const StartPagePosition startPagePosition) {
-  if (!section_) {
-    auto cacheFile = cacheDir / "cache.html";
-    auto binFile =
-        cacheDir / std::format("{}_{}.bin", chapterNavigator_.currentBookNumber(), chapterNavigator_.getChapter());
-
-    section_ = std::make_unique<BibleSection>(cacheFile, binFile, std::string(bible_->language()), renderer);
-
-    const bool cacheLoaded = section_->loadSectionFile(renderSpec_);
-    const bool cacheComplete = cacheLoaded && !section_->isPartial();
-
-    const auto popup = [this] {
-      if (renderer.hasFrameBuffer()) {
-        auto _ = GUI.drawPopup(renderer, tr(STR_INDEXING));
-      }
-    };
-
-    const auto dumpParseFile = [this, &cacheFile] {
-      HalFile file = Storage.open(cacheFile.c_str(), O_WRONLY | O_CREAT | O_TRUNC);
-      if (!file) {
-        LOG_ERR(MODULE_TAG, "Could not open cache file for writing %s", cacheFile.c_str());
-        return false;
-      }
-      constexpr auto formatter = BibleVerseFormatter{};
-      serialization::BufferedFileWriter cache{file, IO_BUFFER_SIZE};
-      const serialization::BufferedFileWriterIterator iter{cache};
-      formatter.formatChapter(iter, *bible_, chapterNavigator_.currentBookNumber(), chapterNavigator_.getChapter(),
-                              bible_->chapterString());
-      cache.flush();
-      file.flush();
-      file.close();
-      LOG_DBG(MODULE_TAG, "Cache written to %s", cacheFile.c_str());
-      return true;
-    };
-
-    const auto buildCache = [this, &popup, &dumpParseFile](const bool isPartial) {
-      GfxRenderer::FrameBufferLoan loan(renderer);
-      if (!dumpParseFile()) {
-        return false;
-      }
-      if (!isPartial) {
-        return section_->createSectionFile(renderSpec_, popup);
-      }
-      return section_->startBuild(renderSpec_, popup);
-    };
-
-    if (!cacheComplete) {
-      if (section_->isPartial()) {
-        LOG_DBG(MODULE_TAG, "Partial cache found (%d pages), resuming...", section_->pageCount);
-      } else {
-        LOG_DBG(MODULE_TAG, "Cache not found, building...");
-      }
-      if (!buildCache(section_->isPartial())) {
-        LOG_ERR(MODULE_TAG, "Failed to create section cache file");
-        section_.reset();
-        return false;
-      }
-    } else {
-      LOG_DBG(MODULE_TAG, "Cache found (%d pages)", section_->pageCount);
+    }
+    case BibleMenuActivity::READING_PLAN: {
+      const std::filesystem::path modulePath{bookPath};
+      const auto parent = modulePath.parent_path();
+      auto browser =
+          std::make_unique<FileBrowserActivity>(renderer, mappedInput, parent, FileBrowserActivity::Mode::Bibles);
+      auto handler = [this](const ActivityResult& result) {
+        if (!result.isCancelled) {
+          const auto& [path] = std::get<FilePathResult>(result.data);
+          LOG_DBG(MODULE_TAG, "Selected reading plan path = '%s'", path.c_str());
+          config_.readingPlanPath = path;
+        }
+        requestUpdate();
+      };
+      startActivityForResult(std::move(browser), handler);
+      break;
+    }
+    case BibleMenuActivity::READING_DAY: {
+      LOG_INF(MODULE_TAG, "Selected reading day");
+      auto activity =
+          std::make_unique<ReadingPlanActivity>(bible_, config_, renderer, mappedInput, config_.readingPlanPath, false);
+      auto handler = [this](const ActivityResult& result) {
+        LOG_INF(MODULE_TAG, "Selected reading day, opened?");
+        requestUpdate();
+      };
+      startActivityForResult(std::move(activity), handler);
+      break;
     }
   }
-
-  if (section_->isBuilding()) {
-    while (!section_->isBuildComplete()) {
-      if (!section_->buildSomeMore(BUILD_PAGES_PER_CHUNK)) {
-        section_.reset();
-        return false;
-      }
-    }
-  }
-
-  chapterNavigator_.totalPages = static_cast<int>(section_->pageCount);
-  if (section_->pageCount == 0) {
-    return false;
-  }
-
-  if (const auto* target = std::get_if<TargetPage>(&startPagePosition)) {
-    chapterNavigator_.setPage(target->page);
-  } else if (std::holds_alternative<LastPage>(startPagePosition)) {
-    chapterNavigator_.setPage(chapterNavigator_.totalPages - 1);
-  }
-  return true;
 }
-
-bool BibleActivity::isAtEndOfBook() const { return false; }
-
-bool BibleActivity::loadChapter(const StartPagePosition startPagePosition) {
-  section_.reset();
-  chapterTitle_.clear();
-
-  std::format_to(std::back_inserter(chapterTitle_), "{} {}", chapterNavigator_.currentBookName(),
-                 chapterNavigator_.getChapter());
-
-  // Update recents
-  RECENT_BOOKS.addBook(bookPath, getBookTitle(), chapterTitle_, "");
-
-  const std::filesystem::path cacheDir = std::filesystem::path("/") / ".bible" / std::string(bible_->id());
-
-  if (!Storage.exists(cacheDir.c_str())) {
-    Storage.mkdir(cacheDir.c_str());
-  }
-
-  return layout(cacheDir, startPagePosition);
-}
-
-bool BibleActivity::loadBook() {
-  bible_ = std::make_unique<BibleToolbox::Bible>(bookPath, HAL_VFS_NAME);
-  config_.biblePath = bookPath;  // Save loaded module
-
-  if (bible_->books().empty()) {
-    LOG_INF(MODULE_TAG, "Couldn't load Bible module (no books found)");
-    config_.clear();  // Reset unloadable module
-    return false;
-  }
-
-  bibleNavigator_.configureWith(bible_->books());
-  if (!chapterNavigator_.setPosition(BibleToolbox::BookPosition{
-          .book = config_.bookIndex, .chapter = config_.chapterNumber, .page = config_.pageNumber})) {
-    LOG_INF(MODULE_TAG, "Loaded book position is out of bounds!");
-  }
-
-  return loadChapter(TargetPage{config_.pageNumber});
-}
-
-void BibleActivity::renderBook() {
-  renderer.clearScreen();
-
-  auto renderVerses = [&] {
-    const int font_id = renderSpec_.fontId;
-    const int x = SETTINGS.screenMargin;
-    const int y = x;
-    renderPage(font_id, x, y);
-  };
-
-  if (chapterNavigator_.totalPages > 0) {
-    {
-      auto* fontCacheManager = renderer.getFontCacheManager();
-      auto scope = fontCacheManager->createPrewarmScope();
-      renderVerses();
-    }
-    renderVerses();
-  } else {
-    renderer.drawCenteredText(UI_12_FONT_ID, 300, "No Bible module loaded", true, EpdFontFamily::BOLD);
-  }
-
-  renderStatusBar();
-
-  if (SETTINGS.textAntiAliasing) {
-    ReaderUtils::displayBaseWithRefreshCycle(renderer, pagesUntilFullRefresh);
-    ReaderUtils::renderAntiAliased(renderer, renderVerses);
-  } else {
-    ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
-  }
-}
-
-bool BibleActivity::pageTurn(const bool isForward) { return chapterNavigator_.turnPage(isForward); }
-
-bool BibleActivity::skipPages(const int amount) { return chapterNavigator_.skipPages(amount); }
-
-std::string BibleActivity::getBookTitle() const { return std::string(bible_->description()); }

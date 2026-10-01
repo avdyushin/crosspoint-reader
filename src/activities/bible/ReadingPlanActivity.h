@@ -2,17 +2,16 @@
 
 #include "BaseBibleActivity.h"
 #include "BibleConfigStore.h"
-#include "BibleMenuActivity.h"
-#include "BibleNavigator.h"
+#include "DailyNavigator.h"
+#include "ReadingPlan.h"
 
-class BibleActivity final : public BaseBibleActivity<BibleToolbox::BibleNavigator> {
-  BibleConfigStore config_{};
-  BibleToolbox::BibleNavigator bibleNavigator_{};
-
-  void handleMenuAction(BibleMenuActivity::MenuItem menuItem);
+class ReadingPlanActivity final : public BaseBibleActivity<BibleToolbox::DailyNavigator> {
+  BibleToolbox::DailyNavigator dailyNavigator_{};
 
  protected:
   std::shared_ptr<BibleToolbox::Bible> bible_;
+  std::unique_ptr<BibleToolbox::ReadingPlan> readingPlan_;
+  BibleConfigStore& config_;
 
   std::filesystem::path getCacheDir() const override;
   std::string getCacheFileName() const override;
@@ -20,7 +19,7 @@ class BibleActivity final : public BaseBibleActivity<BibleToolbox::BibleNavigato
   std::string getChapterTitle() const override;
   std::string getBookTitle() const override;
   std::string getLanguage() const override;
-  bool isAtEndOfBook() const override { return false; }
+  bool isAtEndOfBook() const override;
   bool loadBook() override;
   bool loadChapter(StartPagePosition startPagePosition) override;
   void formatChapter(serialization::BufferedFileWriterIterator iter) override;
@@ -28,10 +27,13 @@ class BibleActivity final : public BaseBibleActivity<BibleToolbox::BibleNavigato
                          BibleToolbox::PositionChange changes) override;
 
  public:
-  BibleActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
-                const bool allowFastInitialRefresh)
-      : BaseBibleActivity(BibleToolbox::PageNavigator{bibleNavigator_}, renderer, mappedInput, std::move(bookPath),
-                          allowFastInitialRefresh) {}
+  ReadingPlanActivity(const std::shared_ptr<BibleToolbox::Bible>& bible, BibleConfigStore& config,
+                      GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
+                      const bool allowFastInitialRefresh)
+      : BaseBibleActivity(BibleToolbox::PageNavigator{dailyNavigator_}, renderer, mappedInput, std::move(bookPath),
+                          allowFastInitialRefresh),
+        bible_(bible),
+        config_(config) {}
 
   void loop() override;
 };

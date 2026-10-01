@@ -14,6 +14,8 @@ class BibleConfigStore : public PersistableStore<BibleConfigStore> {
   int bookIndex;
   int chapterNumber = BibleToolbox::START_CHAPTER_NUMBER;
   int pageNumber;
+  std::string readingPlanPath;
+  int readingPlanDay;
 
   ~BibleConfigStore() { auto _ = saveToFile(); }
 
@@ -23,6 +25,8 @@ class BibleConfigStore : public PersistableStore<BibleConfigStore> {
     bookIndex = 0;
     chapterNumber = BibleToolbox::START_CHAPTER_NUMBER;
     pageNumber = 0;
+    readingPlanPath.clear();
+    readingPlanDay = 0;
   }
 
   static const char* getFilePath() { return CONFIG_PATH; }
@@ -34,6 +38,8 @@ class BibleConfigStore : public PersistableStore<BibleConfigStore> {
     doc["bookIndex"] = bookIndex;
     doc["chapterNumber"] = chapterNumber;
     doc["pageNumber"] = pageNumber;
+    doc["readingPlanPath"] = readingPlanPath;
+    doc["readingPlanDay"] = readingPlanDay;
   }
 
   bool fromJson(const JsonVariantConst doc) {
@@ -43,6 +49,8 @@ class BibleConfigStore : public PersistableStore<BibleConfigStore> {
     bookIndex = doc["bookIndex"] | 0;
     chapterNumber = doc["chapterNumber"] | BibleToolbox::START_CHAPTER_NUMBER;
     pageNumber = doc["pageNumber"] | 0;
+    readingPlanPath = doc["readingPlanPath"] | "";
+    readingPlanDay = doc["readingPlanDay"] | 0;
     return true;
   }
 };

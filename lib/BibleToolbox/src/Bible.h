@@ -50,5 +50,7 @@ class Bible {
                                                    bool excludeStrongsNumbers) const;
 
   [[nodiscard]] std::vector<Verse> versesByLocation(const Location& location, bool excludeStrongsNumbers) const;
+
+  [[nodiscard]] std::string locationToString(const Location& location) const;
 };
 }  // namespace BibleToolbox

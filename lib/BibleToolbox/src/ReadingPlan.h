@@ -19,6 +19,8 @@ class ReadingPlan {
 
   [[nodiscard]] std::string_view id() const { return info_.id; }
 
+  [[nodiscard]] int daysCount() const { return info_.daysCount; }
+
   [[nodiscard]] std::vector<Location> locationsByDay(int day) const;
 };
 }  // namespace BibleToolbox

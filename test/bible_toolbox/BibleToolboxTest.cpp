@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
-#include <stdexcept>
 #include <string>
 
 #include "Bible.h"
@@ -20,12 +19,30 @@ class MockVersesProvider {
   const Book* operator[](bookNumber) const { return &book_; }
   static std::vector<Verse> versesInChapter(bookNumber, chapterNumber, bool) {
     return std::vector{
-        Verse{.verse = 1, .text = "First verse."},
-        Verse{.verse = 2, .text = "Last verse."},
+        Verse{.chapter = 1, .verse = 1, .text = "First verse."},
+        Verse{.chapter = 1, .verse = 2, .text = "Last verse."},
     };
   }
   static std::vector<Verse> versesByLocation(const Location& location, const bool exclude) {
-    return versesInChapter(location.book, location.range.startChapter, exclude);
+    const auto count = location.range.startVerse - location.range.endVerse + 1;
+    const auto result = versesInChapter(location.book, location.range.startChapter, exclude);
+    return {
+        result.begin(),
+        result.begin() + count,
+    };
+  }
+  static std::string locationToString(const Location& location) { return "Gen. 1:1"; }
+};
+
+class MockPlanProvider {
+ public:
+  static std::vector<Location> locationsByDay(const int day) {
+    return {
+        Location{
+            .book = GENESIS_BOOK_NUMBER,
+            .range = {.startChapter = 1, .startVerse = 1, .endChapter = 1, .endVerse = 1},
+        },
+    };
   }
 };
 }  // namespace
@@ -74,6 +91,21 @@ TEST_F(BibleToolboxTest, HtmlVerseFormatterNonFirstChapter) {
       "<p><sup>2 </sup> Last verse.</p>\n"
       "</body></html>\n";
 
+  ASSERT_EQ(expected, actual) << "Invalid formatted text";
+}
+
+TEST_F(BibleToolboxTest, HtmlReadingDayFormatter) {
+  std::string actual;
+  const auto provider = MockVersesProvider{};
+  constexpr auto plan = MockPlanProvider{};
+  constexpr auto formatter = BibleVerseFormatter{};
+  formatter.readingDayVerses(std::back_inserter(actual), plan, provider, 0, "Day");
+  constexpr auto expected =
+      "<html><body>\n"
+      "<h1>Day 0</h1>\n"
+      "<h2>Gen. 1:1</h2>\n"
+      "<p><sup>1:1 </sup> First verse.</p>\n"
+      "</body></html>\n";
   ASSERT_EQ(expected, actual) << "Invalid formatted text";
 }
 
@@ -145,6 +177,7 @@ TEST_F(BibleToolboxTest, ExtractsFamousVersesCorrectly) {
 
 TEST_F(BibleToolboxTest, ReadingPlanInfoCorrect) {
   ASSERT_EQ("OY-p.plan", std::string(plan->id()));
+  ASSERT_EQ(plan->daysCount(), 365);
 
   auto items = plan->locationsByDay(1);
   ASSERT_EQ(items.size(), 4);
