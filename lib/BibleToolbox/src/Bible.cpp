@@ -5,6 +5,7 @@
 #include <string_view>
 
 #include "Connection.h"
+#include "Logging.h"
 
 namespace {
 auto to_lower_view = [](std::string_view str) {
@@ -251,32 +252,14 @@ std::vector<Verse> Bible::versesByLocation(const Location& location, const bool 
   }
   std::vector<Verse> verses;
   locationStatement_.reset();
-  {
-    auto _ = locationStatement_.bind(1, location.book);
-  }
-  {
-    auto _ = locationStatement_.bind(2, location.range.startChapter);
-  }
-  {
-    auto _ = locationStatement_.bind(3, location.range.startVerse);
-  }
-  {
-    auto _ = locationStatement_.bind(4, location.book);
-  }
-  {
-    auto _ = locationStatement_.bind(5, location.range.startChapter);
-  }
-  {
-    auto _ = locationStatement_.bind(6, location.range.endChapter);
-  }
-  {
-    auto _ = locationStatement_.bind(7, location.book);
-  }
-  {
-    auto _ = locationStatement_.bind(8, location.range.endChapter);
-  }
-  {
-    auto _ = locationStatement_.bind(9, location.range.endVerse);
+  const std::array<int, 9> values{location.book, location.range.startChapter, location.range.startVerse,
+                                  location.book, location.range.startChapter, location.range.endChapter,
+                                  location.book, location.range.endChapter,   location.range.endVerse};
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (!locationStatement_.bind(static_cast<int>(i + 1), values[i])) {
+      LOG_DBG("Bible", "Failed to bind %d column!", i + 1);
+      return {};
+    }
   }
   auto transform = [excludeStrongsNumbers](const std::string_view text) {
     std::string result{text};
