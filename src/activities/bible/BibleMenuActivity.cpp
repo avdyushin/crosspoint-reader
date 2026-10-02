@@ -1,5 +1,7 @@
 #include "BibleMenuActivity.h"
 
+#include <format>
+
 #include "components/UITheme.h"
 
 void BibleMenuActivity::render(RenderLock&&) {
@@ -44,7 +46,7 @@ void BibleMenuActivity::buildScreen(UiScreen& screen) {
                        subHeader.c_str(), screen.theme().smallText);
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
 
-  freeink::ui::ListProps props{
+  freeink::ui::ListProps listProps{
       .items = &rowItems_[0],
       .count = listCount(),
       .action = ACTION_ROW,
@@ -52,24 +54,33 @@ void BibleMenuActivity::buildScreen(UiScreen& screen) {
       .labelText = screen.theme().smallText,
       .valueInset = 8,
   };
-  props.labelText.maxLines = 2;
+  listProps.labelText.maxLines = 2;
 
   rowItems_[MODULE].value = config_.module().data();
 
   if (config_.hasModule()) {
     const std::string chapter = std::to_string(config_.currentChapterNumber);
     rowItems_[BOOK].value = config_.currentBookName.data();
-    rowItems_[CHAPTER].value = chapter.c_str();
+    rowItems_[CHAPTER].value = chapter.data();
     rowItems_[READING_PLAN].value = config_.readingPlan().data();
   }
 
   if (config_.hasReadingPlan()) {
     const auto day = std::format("Day {}", config_.readingPlanDay);
-    rowItems_[DAILY_READING].value = day.c_str();
+    rowItems_[DAILY_READING].value = day.data();
   }
 
-  syncListViewport(screen, props);
-  screen.list(props);
+  syncListViewport(screen, listProps);
+  screen.list(listProps);
+  // screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
+  //
+  // if (activeNav().selected == MODULE) {
+  //   const auto style = screen.theme().smallText;
+  //   const int16_t lh = screen.target().lineHeight(style.font);
+  //   const freeink::ui::Rect desc = screen.takeBottom(lh, pad);
+  //   screen.target().text(desc.inset(freeink::ui::Insets{.top = 0, .right = pad, .bottom = 0, .left = pad}),
+  //                        config_.moduleDescription.c_str(), style);
+  // }
 }
 
 void BibleMenuActivity::drawChrome() {

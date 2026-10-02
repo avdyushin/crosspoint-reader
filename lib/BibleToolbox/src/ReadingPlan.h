@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "Connection.h"
 #include "Location.h"
 #include "ReadingPlanInfo.h"

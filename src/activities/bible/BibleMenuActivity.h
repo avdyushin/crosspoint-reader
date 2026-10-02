@@ -7,6 +7,7 @@ class BibleMenuActivity final : public UiListActivity {
  public:
   struct Config {
     std::string currentModuleId;
+    std::string moduleDescription;
     std::string currentBookName;
     int currentChapterNumber;
     std::string readingPlanId;

@@ -52,10 +52,7 @@ class PageNavigator {
 
   [[nodiscard]] int chapterCount() const { return navigator_.chaptersCount(position_.book); }
 
-  bool skipPages(const int amount) {
-    const int target_page = std::clamp(position_.page + amount, 0, totalPages - 1);
-    return setPosition(BookPosition{.book = position_.book, .chapter = position_.chapter, .page = target_page});
-  }
+  bool skipPages(const int amount) { return setPage(std::clamp(position_.page + amount, 0, totalPages - 1)); }
 
   bool turnPage(const bool isForward) {
     if (isForward) {

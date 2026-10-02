@@ -124,9 +124,11 @@ void BibleActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     const auto moduleId = bible_ == nullptr ? "" : std::string(bible_->id());
     const auto bookName = bible_ == nullptr ? "" : std::string(chapterNavigator_.currentBookName());
+    const auto description = bible_ == nullptr ? "" : std::string(bible_->description());
     const std::filesystem::path readingPlanPath = readingPlanConfig_.readingPlanPath;
     const auto readingPlanId = !readingPlanPath.has_filename() ? "" : readingPlanPath.stem().string();
     const BibleMenuActivity::Config config{.currentModuleId = moduleId,
+                                           .moduleDescription = description,
                                            .currentBookName = bookName,
                                            .currentChapterNumber = chapterNavigator_.getChapter(),
                                            .readingPlanId = readingPlanId,
