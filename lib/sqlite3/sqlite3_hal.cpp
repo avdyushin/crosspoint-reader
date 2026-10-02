@@ -30,13 +30,12 @@ int full_pathname(sqlite3_vfs*, const char* zPath, const int nPathOut, char* zPa
   return SQLITE_OK;
 }
 
-int read(sqlite3_file* pFile, void* zBuffer, int iAmount, sqlite_int64 iOffset) {
+int read(sqlite3_file* pFile, void* zBuffer, const int iAmount, const sqlite_int64 iOffset) {
   const file_wrapper* file = reinterpret_cast<file_wrapper*>(pFile);
   if (!file->hal->seekSet(iOffset)) {
     return SQLITE_IOERR_SEEK;
   }
-  const auto readSize = file->hal->read(zBuffer, iAmount);
-  if (readSize != iAmount) {
+  if (file->hal->read(zBuffer, iAmount) != iAmount) {
     return SQLITE_IOERR_READ;
   }
   return SQLITE_OK;

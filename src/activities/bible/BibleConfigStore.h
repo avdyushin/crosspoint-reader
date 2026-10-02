@@ -12,7 +12,7 @@ class BibleConfigStore : public PersistableStore<BibleConfigStore> {
   std::string version;
   std::string biblePath;
   int bookIndex;
-  int chapterNumber = BibleToolbox::START_CHAPTER_NUMBER;
+  int chapterNumber{BibleToolbox::START_CHAPTER_NUMBER};
   int pageNumber;
 
   ~BibleConfigStore() { auto _ = saveToFile(); }

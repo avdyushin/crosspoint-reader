@@ -2,6 +2,7 @@
 
 namespace BibleToolbox {
 inline constexpr int START_CHAPTER_NUMBER = 1;
+inline constexpr int START_READING_DAY = 1;
 
 using bookNumber = uint16_t;
 using chapterNumber = uint8_t;

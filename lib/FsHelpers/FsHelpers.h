@@ -76,6 +76,12 @@ inline bool hasSqliteExtension(const String& fileName) {
   return hasSqliteExtension(std::string_view{fileName.c_str(), fileName.length()});
 }
 
+// Check for .plan.SQLite3 extension (case-insensitive)
+bool hasPlanSqliteExtension(std::string_view fileName);
+inline bool hasPlanSqliteExtension(const String& fileName) {
+  return hasPlanSqliteExtension(std::string_view{fileName.c_str(), fileName.length()});
+}
+
 std::string extractFolderPath(const std::string& filePath);
 
 // Rejects an empty component, one containing '/' or '\', or the exact components

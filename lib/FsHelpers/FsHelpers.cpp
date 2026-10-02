@@ -178,6 +178,8 @@ bool hasCssExtension(std::string_view fileName) { return checkFileExtension(file
 
 bool hasSqliteExtension(const std::string_view fileName) { return checkFileExtension(fileName, ".SQLite3"); }
 
+bool hasPlanSqliteExtension(const std::string_view fileName) { return checkFileExtension(fileName, ".plan.SQLite3"); }
+
 std::string extractFolderPath(const std::string& filePath) {
   const auto lastSlash = filePath.find_last_of('/');
   if (lastSlash == std::string::npos || lastSlash == 0) {

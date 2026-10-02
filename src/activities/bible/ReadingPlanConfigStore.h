@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Bible.h"
+#include "Constants.h"
 #include "PersistableStore.h"
 
 class ReadingPlanConfigStore : public PersistableStore<ReadingPlanConfigStore> {
@@ -11,7 +11,7 @@ class ReadingPlanConfigStore : public PersistableStore<ReadingPlanConfigStore> {
  public:
   std::string version;
   std::string readingPlanPath;
-  int readingPlanDay;
+  int readingPlanDay{BibleToolbox::START_READING_DAY};
   int pageNumber;
 
   ~ReadingPlanConfigStore() { auto _ = saveToFile(); }
@@ -19,7 +19,7 @@ class ReadingPlanConfigStore : public PersistableStore<ReadingPlanConfigStore> {
   void clear() {
     version = CONFIG_VERSION;
     readingPlanPath.clear();
-    readingPlanDay = 1;
+    readingPlanDay = BibleToolbox::START_READING_DAY;
     pageNumber = 0;
   }
 
@@ -37,7 +37,7 @@ class ReadingPlanConfigStore : public PersistableStore<ReadingPlanConfigStore> {
     std::lock_guard lock(configMutex);
     version = doc["version"] | CONFIG_VERSION;
     readingPlanPath = doc["readingPlanPath"] | "";
-    readingPlanDay = doc["readingPlanDay"] | 1;
+    readingPlanDay = doc["readingPlanDay"] | BibleToolbox::START_READING_DAY;
     pageNumber = doc["pageNumber"] | 0;
     return true;
   }

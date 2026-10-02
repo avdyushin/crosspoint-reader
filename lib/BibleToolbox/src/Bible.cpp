@@ -81,6 +81,10 @@ Bible::Bible(const std::filesystem::path& path, const char* vfs) {
       books_ = fetchBooks();
     }
 
+    if (!isValid()) {
+      return;
+    }
+
     constexpr auto verses_between =
         "SELECT verse, text FROM verses WHERE book_number = ? AND chapter = ? AND verse BETWEEN ? AND ?;";
     chapterVersesBetween_.prepare(connection_.get(), verses_between);

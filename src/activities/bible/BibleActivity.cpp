@@ -40,6 +40,10 @@ bool BibleActivity::loadBook() {
     LOG_INF(MODULE_TAG, "Could not load configuration file");
   }
 
+  if (!readingPlanConfig_.loadFromFile()) {
+    LOG_INF(MODULE_TAG, "Could not load reading plan configuration file");
+  }
+
   if (bookPath.empty()) {
     bookPath = config_.biblePath;
     LOG_INF(MODULE_TAG, "No module path provided, using last opened: %s", bookPath.c_str());
@@ -49,8 +53,9 @@ bool BibleActivity::loadBook() {
   bible_ = std::make_shared<BibleToolbox::Bible>(bookPath, HAL_VFS_NAME);
   config_.biblePath = bookPath;  // Save loaded module
 
-  if (bible_->books().empty()) {
+  if (!bible_->isValid()) {
     LOG_INF(MODULE_TAG, "Couldn't load Bible module (no books found)");
+    bible_.reset();
     config_.clear();  // Reset unloadable module
     return false;
   }
@@ -81,9 +86,11 @@ bool BibleActivity::loadChapter(const StartPagePosition startPagePosition) {
 }
 
 void BibleActivity::formatChapter(const serialization::BufferedFileWriterIterator iter) {
-  constexpr auto formatter = BibleVerseFormatter{};
-  formatter.formatChapter(iter, *bible_, chapterNavigator_.currentBookNumber(), chapterNavigator_.getChapter(),
-                          bible_->chapterString());
+  if (bible_) {
+    constexpr auto formatter = BibleVerseFormatter{};
+    formatter.formatChapter(iter, *bible_, chapterNavigator_.currentBookNumber(), chapterNavigator_.getChapter(),
+                            bible_->chapterString());
+  }
 }
 
 void BibleActivity::onPositionChanged(const BibleToolbox::BookPosition oldPosition,
@@ -114,16 +121,15 @@ void BibleActivity::loop() {
   ReaderActivity::loop();
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    readingPlanConfig_.loadFromFile();
-    const auto moduleId = bible_ == nullptr ? "None" : std::string(bible_->id());
-    const auto bookName = bible_ == nullptr ? "-" : std::string(chapterNavigator_.currentBookName());
+    const auto moduleId = bible_ == nullptr ? "" : std::string(bible_->id());
+    const auto bookName = bible_ == nullptr ? "" : std::string(chapterNavigator_.currentBookName());
     const std::filesystem::path readingPlanPath = readingPlanConfig_.readingPlanPath;
-    const auto readingPlanId = readingPlanPath.has_filename() ? readingPlanPath.stem().string() : "None";
+    const auto readingPlanId = !readingPlanPath.has_filename() ? "" : readingPlanPath.stem().string();
     const BibleMenuActivity::Config config{.currentModuleId = moduleId,
                                            .currentBookName = bookName,
                                            .currentChapterNumber = chapterNavigator_.getChapter(),
                                            .readingPlanId = readingPlanId,
-                                           .readingDay = readingPlanConfig_.readingPlanDay};
+                                           .readingPlanDay = readingPlanConfig_.readingPlanDay};
     auto menu = std::make_unique<BibleMenuActivity>(renderer, mappedInput, config);
     auto handler = [this](const ActivityResult& result) {
       const auto& menuResult = std::get<MenuResult>(result.data);
@@ -137,7 +143,7 @@ void BibleActivity::loop() {
 }
 
 void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem) {
-  auto openReadingPlan = [this](std::string path) {
+  auto openReadingPlan = [this](const std::string& path) {
     auto activity =
         std::make_unique<ReadingPlanActivity>(bible_, readingPlanConfig_, renderer, mappedInput, path, false);
     auto handler = [this](const ActivityResult& result) {
@@ -214,25 +220,26 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
       break;
     }
     case BibleMenuActivity::READING_PLAN: {
-      if (readingPlanConfig_.readingPlanPath.empty() || readingPlanConfig_.readingPlanDay == 0) {
-        const std::filesystem::path modulePath{bookPath};
-        const auto parent = modulePath.parent_path();
-        auto browser =
-            std::make_unique<FileBrowserActivity>(renderer, mappedInput, parent, FileBrowserActivity::Mode::Bibles);
-        auto handler = [this, openReadingPlan](const ActivityResult& result) {
-          if (!result.isCancelled) {
-            const auto& [path] = std::get<FilePathResult>(result.data);
-            LOG_DBG(MODULE_TAG, "Selected reading plan path = '%s'", path.c_str());
-            readingPlanConfig_.readingPlanPath = path;
-            readingPlanConfig_.readingPlanDay = 1;
-            openReadingPlan(path);
-          }
-          requestUpdate();
-        };
-        startActivityForResult(std::move(browser), handler);
-      } else {
-        openReadingPlan(readingPlanConfig_.readingPlanPath);
-      }
+      const std::filesystem::path modulePath{bookPath};
+      const auto parent = modulePath.parent_path();
+      auto browser =
+          std::make_unique<FileBrowserActivity>(renderer, mappedInput, parent, FileBrowserActivity::Mode::ReadingPlans);
+      auto handler = [this](const ActivityResult& result) {
+        if (!result.isCancelled) {
+          const auto& [path] = std::get<FilePathResult>(result.data);
+          LOG_DBG(MODULE_TAG, "Selected reading plan path = '%s'", path.c_str());
+          readingPlanConfig_.readingPlanPath = path;
+        }
+        requestUpdate();
+      };
+      startActivityForResult(std::move(browser), handler);
+      break;
+    }
+    case BibleMenuActivity::DAILY_READING: {
+      auto activity = std::make_unique<ReadingPlanActivity>(bible_, readingPlanConfig_, renderer, mappedInput,
+                                                            readingPlanConfig_.readingPlanPath, false);
+      auto handler = [this](const ActivityResult&) { requestUpdate(); };
+      startActivityForResult(std::move(activity), handler);
       break;
     }
   }

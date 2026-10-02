@@ -32,8 +32,8 @@ class BibleActivity final : public BaseBibleActivity<BibleToolbox::BibleNavigato
  public:
   BibleActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
                 const bool allowFastInitialRefresh)
-      : BaseBibleActivity(BibleToolbox::PageNavigator{bibleNavigator_}, renderer, mappedInput, std::move(bookPath),
-                          allowFastInitialRefresh) {}
+      : BaseBibleActivity("BibleActivity", BibleToolbox::PageNavigator{bibleNavigator_}, renderer, mappedInput,
+                          std::move(bookPath), allowFastInitialRefresh) {}
 
   void loop() override;
 };

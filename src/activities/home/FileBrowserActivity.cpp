@@ -70,7 +70,11 @@ void FileBrowserActivity::loadFiles() {
           files.emplace_back(filename);
         }
       } else if (mode == Mode::Bibles) {
-        if (FsHelpers::hasSqliteExtension(filename)) {
+        if (!FsHelpers::hasPlanSqliteExtension(filename) && FsHelpers::hasSqliteExtension(filename)) {
+          files.emplace_back(filename);
+        }
+      } else if (mode == Mode::ReadingPlans) {
+        if (FsHelpers::hasPlanSqliteExtension(filename)) {
           files.emplace_back(filename);
         }
       } else if (FsHelpers::hasEpubExtension(filename) || FsHelpers::hasXtcExtension(filename) ||
@@ -280,7 +284,7 @@ void FileBrowserActivity::activateSelected(const bool forceDelete) {
     return;
   }
 
-  if (mode == Mode::Bibles && !isDirectory) {
+  if ((mode == Mode::Bibles || mode == Mode::ReadingPlans) && !isDirectory) {
     const auto basePath = std::filesystem::path(basepath);
     ActivityResult result{FilePathResult{basePath / entry}};
     result.isCancelled = false;
@@ -401,7 +405,7 @@ bool FileBrowserActivity::handleButtons() {
         }
 
         requestUpdate();
-      } else if (mode == Mode::PickFirmware || mode == Mode::Bibles) {
+      } else if (mode == Mode::PickFirmware || mode == Mode::Bibles || mode == Mode::ReadingPlans) {
         // Firmware picker at root: cancel back to caller instead of going home.
         ActivityResult res;
         res.isCancelled = true;
@@ -525,9 +529,11 @@ void FileBrowserActivity::drawChrome() {
 }
 
 void FileBrowserActivity::drawFooter() {
-  const char* backLabel = (basepath == "/")
-                              ? ((mode == Mode::PickFirmware || mode == Mode::Bibles) ? tr(STR_BACK) : tr(STR_HOME))
-                              : tr(STR_BACK);
+  const char* backLabel =
+      (basepath == "/")
+          ? ((mode == Mode::PickFirmware || mode == Mode::Bibles || mode == Mode::ReadingPlans) ? tr(STR_BACK)
+                                                                                                : tr(STR_HOME))
+          : tr(STR_BACK);
   // In PickFirmware mode, Confirm on a .bin returns the path to the caller (not "open"); show
   // STR_SELECT instead. Directories in the same picker still descend, so keep STR_OPEN there.
   const bool selectingFirmwareFile = mode == Mode::PickFirmware && !files.empty() && nav.selected >= 0 &&

@@ -34,6 +34,8 @@ class Bible {
 
   [[nodiscard]] std::span<const Book> books() const { return books_; }
 
+  [[nodiscard]] bool isValid() const { return !books_.empty(); }
+
   [[nodiscard]] std::string_view id() const { return info_.id; }
 
   [[nodiscard]] std::string_view chapterString() const { return info_.chapterString; }

@@ -92,8 +92,9 @@ void ReadingPlanActivity::loop() {
 }
 
 bool ReadingPlanActivity::handleBackNavigation() {
-  ActivityResult result;
-  result.isCancelled = true;
-  setResult(std::move(result));
-  return true;
+  if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
+    finish();
+    return true;
+  }
+  return false;
 }

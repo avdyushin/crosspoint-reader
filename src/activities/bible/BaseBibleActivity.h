@@ -47,8 +47,8 @@ class BaseBibleActivity : public ReaderActivity {
   virtual std::string getBinFileName() const = 0;
 
  public:
-  BaseBibleActivity(BibleToolbox::PageNavigator<Navigator>, GfxRenderer& renderer, MappedInputManager& mappedInput,
-                    std::string bookPath, bool allowFastInitialRefresh);
+  BaseBibleActivity(const char* name, BibleToolbox::PageNavigator<Navigator>, GfxRenderer& renderer,
+                    MappedInputManager& mappedInput, std::string bookPath, bool allowFastInitialRefresh);
   ~BaseBibleActivity() override = default;
 
   void onEnter() override;

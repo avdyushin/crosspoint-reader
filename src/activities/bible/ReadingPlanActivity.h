@@ -26,14 +26,14 @@ class ReadingPlanActivity final : public BaseBibleActivity<BibleToolbox::DailyNa
   void formatChapter(serialization::BufferedFileWriterIterator iter) override;
   void onPositionChanged(BibleToolbox::BookPosition oldPosition, BibleToolbox::BookPosition newPosition,
                          BibleToolbox::PositionChange changes) override;
-  bool handleBackNavigation();
+  bool handleBackNavigation() override;
 
  public:
   ReadingPlanActivity(const std::shared_ptr<BibleToolbox::Bible>& bible, ReadingPlanConfigStore& config,
                       GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
                       const bool allowFastInitialRefresh)
-      : BaseBibleActivity(BibleToolbox::PageNavigator{dailyNavigator_}, renderer, mappedInput, std::move(bookPath),
-                          allowFastInitialRefresh),
+      : BaseBibleActivity("ReadingPlanActivity", BibleToolbox::PageNavigator{dailyNavigator_}, renderer, mappedInput,
+                          std::move(bookPath), allowFastInitialRefresh),
         bible_(bible),
         config_(config) {}
 

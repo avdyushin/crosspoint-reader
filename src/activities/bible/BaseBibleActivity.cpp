@@ -27,10 +27,11 @@ constexpr auto BUILD_PAGES_PER_CHUNK = 8;
 }  // namespace
 
 template <BibleToolbox::BookNavigable Navigator>
-BaseBibleActivity<Navigator>::BaseBibleActivity(BibleToolbox::PageNavigator<Navigator> chapterNavigator,
+BaseBibleActivity<Navigator>::BaseBibleActivity(const char* name,
+                                                BibleToolbox::PageNavigator<Navigator> chapterNavigator,
                                                 GfxRenderer& renderer, MappedInputManager& mappedInput,
                                                 std::string bookPath, const bool allowFastInitialRefresh)
-    : ReaderActivity("BibleActivity", renderer, mappedInput, std::move(bookPath), allowFastInitialRefresh),
+    : ReaderActivity(name, renderer, mappedInput, std::move(bookPath), allowFastInitialRefresh),
       chapterNavigator_(std::move(chapterNavigator)) {}
 
 template <BibleToolbox::BookNavigable Navigator>
@@ -180,15 +181,16 @@ void BaseBibleActivity<Navigator>::renderBook() {
       renderVerses();
     }
     renderVerses();
+    renderStatusBar();
   } else {
     renderer.drawCenteredText(UI_12_FONT_ID, 300, "No Bible module loaded", true, EpdFontFamily::BOLD);
   }
 
-  renderStatusBar();
-
   if (SETTINGS.textAntiAliasing) {
     ReaderUtils::displayBaseWithRefreshCycle(renderer, pagesUntilFullRefresh);
-    ReaderUtils::renderAntiAliased(renderer, renderVerses);
+    if (chapterNavigator_.totalPages > 0) {
+      ReaderUtils::renderAntiAliased(renderer, renderVerses);
+    }
   } else {
     ReaderUtils::displayWithRefreshCycle(renderer, pagesUntilFullRefresh);
   }
@@ -196,11 +198,17 @@ void BaseBibleActivity<Navigator>::renderBook() {
 
 template <BibleToolbox::BookNavigable Navigator>
 bool BaseBibleActivity<Navigator>::pageTurn(const bool isForward) {
+  if (chapterNavigator_.totalPages == 0) {
+    return false;
+  }
   return chapterNavigator_.turnPage(isForward);
 }
 
 template <BibleToolbox::BookNavigable Navigator>
 bool BaseBibleActivity<Navigator>::skipPages(const int amount) {
+  if (chapterNavigator_.totalPages == 0) {
+    return false;
+  }
   return chapterNavigator_.skipPages(amount);
 }
 
