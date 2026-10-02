@@ -1,5 +1,7 @@
 #include "ReadingPlanActivity.h"
 
+#include <ranges>
+
 #include "sqlite3_hal.h"
 #include "util/BibleVerseFormatter.h"
 
@@ -87,7 +89,30 @@ void ReadingPlanActivity::loop() {
   ReaderActivity::loop();
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
-    LOG_DBG(MODULE_TAG, "ReadingPlanActivity: Confirm");
+    const auto daysCount = readingPlan_->daysCount();
+    constexpr auto dayString = "Day";
+    dayInfoCache_.clear();
+    dayInfoCache_.reserve(daysCount);
+    auto dayView =
+        std::views::iota(BibleToolbox::START_READING_DAY, daysCount + 1) |
+        std::views::transform([dayString](const int i) { return DayInfo{.name = std::format("{} {}", dayString, i)}; });
+    std::ranges::copy(dayView, std::back_inserter(dayInfoCache_));
+    auto menu = std::make_unique<ReadingPlanDaySelectionActivity>(
+        renderer, mappedInput, "Select Day", dayInfoCache_,
+        chapterNavigator_.getChapter() - BibleToolbox::START_READING_DAY);
+    auto handler = [this](const ActivityResult& result) {
+      const auto& menuResult = std::get<MenuResult>(result.data);
+      if (!result.isCancelled) {
+        if (const auto day = menuResult.action + BibleToolbox::START_READING_DAY;
+            chapterNavigator_.setPosition({.book = 0, .chapter = day, .page = 0})) {
+          loadChapter(TargetPage{});
+        } else {
+          LOG_DBG(MODULE_TAG, "Same day selected or out of range: %d", day);
+        }
+      }
+      requestUpdate();
+    };
+    startActivityForResult(std::move(menu), handler);
   }
 }
 

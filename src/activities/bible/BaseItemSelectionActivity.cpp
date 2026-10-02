@@ -2,6 +2,7 @@
 
 #include "Bible.h"
 #include "BibleChapterSelectionActivity.h"
+#include "ReadingPlanDaySelectionActivity.h"
 #include "components/UITheme.h"
 
 template <HasName Item>
@@ -92,3 +93,4 @@ void BaseItemSelectionActivity<Item>::drawChrome() {
 
 template class BaseItemSelectionActivity<BibleToolbox::Book>;
 template class BaseItemSelectionActivity<BibleChapterInfo>;
+template class BaseItemSelectionActivity<DayInfo>;

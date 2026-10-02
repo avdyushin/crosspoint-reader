@@ -2,8 +2,6 @@
 
 #include <filesystem>
 
-#include "Bible.h"
-#include "BibleChapterSelectionActivity.h"
 #include "BibleSection.h"
 #include "BufferedFileWriterIterator.h"
 #include "Epub/ReaderRenderSpec.h"
@@ -25,7 +23,6 @@ class BaseBibleActivity : public ReaderActivity {
 
   std::unique_ptr<BibleSection> section_;
   BibleToolbox::PageNavigator<Navigator> chapterNavigator_;
-  std::vector<BibleChapterInfo> chapterListCache_;
 
   void renderBook() override;
   bool pageTurn(bool isForward) override;

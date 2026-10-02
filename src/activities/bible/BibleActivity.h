@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BaseBibleActivity.h"
+#include "BibleChapterSelectionActivity.h"
 #include "BibleConfigStore.h"
 #include "BibleMenuActivity.h"
 #include "BibleNavigator.h"
@@ -10,6 +11,7 @@ class BibleActivity final : public BaseBibleActivity<BibleToolbox::BibleNavigato
   BibleConfigStore config_{};
   ReadingPlanConfigStore readingPlanConfig_{};
   BibleToolbox::BibleNavigator bibleNavigator_{};
+  std::vector<BibleChapterInfo> chapterListCache_;
 
   void handleMenuAction(BibleMenuActivity::MenuItem menuItem);
 

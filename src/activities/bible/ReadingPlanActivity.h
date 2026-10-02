@@ -5,10 +5,12 @@
 #include "DailyNavigator.h"
 #include "ReadingPlan.h"
 #include "ReadingPlanConfigStore.h"
+#include "ReadingPlanDaySelectionActivity.h"
 
 class ReadingPlanActivity final : public BaseBibleActivity<BibleToolbox::DailyNavigator> {
   BibleToolbox::DailyNavigator dailyNavigator_{};
   ReadingPlanConfigStore& config_;
+  std::vector<DayInfo> dayInfoCache_{};
 
  protected:
   std::shared_ptr<BibleToolbox::Bible> bible_;

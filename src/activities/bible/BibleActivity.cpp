@@ -3,6 +3,7 @@
 #include <ranges>
 
 #include "BibleBookSelectionActivity.h"
+#include "BibleChapterSelectionActivity.h"
 #include "BufferedFileWriterIterator.h"
 #include "CrossPointState.h"
 #include "ReadingPlan.h"
@@ -143,16 +144,6 @@ void BibleActivity::loop() {
 }
 
 void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem) {
-  auto openReadingPlan = [this](const std::string& path) {
-    auto activity =
-        std::make_unique<ReadingPlanActivity>(bible_, readingPlanConfig_, renderer, mappedInput, path, false);
-    auto handler = [this](const ActivityResult& result) {
-      LOG_INF(MODULE_TAG, "Reading plan closed");
-      requestUpdate();
-    };
-    startActivityForResult(std::move(activity), handler);
-  };
-
   switch (menuItem) {
     case BibleMenuActivity::MODULE: {
       const std::filesystem::path modulePath{bookPath};
@@ -198,7 +189,7 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
       chapterListCache_.reserve(chapterCount);
       auto chapterView = std::views::iota(BibleToolbox::START_CHAPTER_NUMBER, chapterCount + 1) |
                          std::views::transform([chapterString](const int i) {
-                           return BibleChapterInfo{.name = std::string(chapterString) + " " + std::to_string(i)};
+                           return BibleChapterInfo{.name = std::format("{} {}", chapterString, i)};
                          });
       std::ranges::copy(chapterView, std::back_inserter(chapterListCache_));
       auto menu = std::make_unique<BibleChapterSelectionActivity>(

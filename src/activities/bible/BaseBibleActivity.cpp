@@ -2,7 +2,6 @@
 
 #include <sys/stat.h>
 
-#include <filesystem>
 #include <ranges>
 
 #include "../reader/ReaderUtils.h"
