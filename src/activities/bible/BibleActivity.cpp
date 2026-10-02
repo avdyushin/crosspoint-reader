@@ -114,18 +114,16 @@ void BibleActivity::loop() {
   ReaderActivity::loop();
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
+    readingPlanConfig_.loadFromFile();
     const auto moduleId = bible_ == nullptr ? "None" : std::string(bible_->id());
     const auto bookName = bible_ == nullptr ? "-" : std::string(chapterNavigator_.currentBookName());
-    const std::filesystem::path readingPlanPath = config_.readingPlanPath;
+    const std::filesystem::path readingPlanPath = readingPlanConfig_.readingPlanPath;
     const auto readingPlanId = readingPlanPath.has_filename() ? readingPlanPath.stem().string() : "None";
-    const auto readingDay = max(1, config_.readingPlanDay);
-    const BibleMenuActivity::Config config{
-        .currentModuleId = moduleId,
-        .currentBookName = bookName,
-        .currentChapterNumber = chapterNavigator_.getChapter(),
-        .readingPlanId = readingPlanId,
-        .readingDay = readingDay,
-    };
+    const BibleMenuActivity::Config config{.currentModuleId = moduleId,
+                                           .currentBookName = bookName,
+                                           .currentChapterNumber = chapterNavigator_.getChapter(),
+                                           .readingPlanId = readingPlanId,
+                                           .readingDay = readingPlanConfig_.readingPlanDay};
     auto menu = std::make_unique<BibleMenuActivity>(renderer, mappedInput, config);
     auto handler = [this](const ActivityResult& result) {
       const auto& menuResult = std::get<MenuResult>(result.data);
@@ -139,6 +137,16 @@ void BibleActivity::loop() {
 }
 
 void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem) {
+  auto openReadingPlan = [this](std::string path) {
+    auto activity =
+        std::make_unique<ReadingPlanActivity>(bible_, readingPlanConfig_, renderer, mappedInput, path, false);
+    auto handler = [this](const ActivityResult& result) {
+      LOG_INF(MODULE_TAG, "Reading plan closed");
+      requestUpdate();
+    };
+    startActivityForResult(std::move(activity), handler);
+  };
+
   switch (menuItem) {
     case BibleMenuActivity::MODULE: {
       const std::filesystem::path modulePath{bookPath};
@@ -206,30 +214,25 @@ void BibleActivity::handleMenuAction(const BibleMenuActivity::MenuItem menuItem)
       break;
     }
     case BibleMenuActivity::READING_PLAN: {
-      const std::filesystem::path modulePath{bookPath};
-      const auto parent = modulePath.parent_path();
-      auto browser =
-          std::make_unique<FileBrowserActivity>(renderer, mappedInput, parent, FileBrowserActivity::Mode::Bibles);
-      auto handler = [this](const ActivityResult& result) {
-        if (!result.isCancelled) {
-          const auto& [path] = std::get<FilePathResult>(result.data);
-          LOG_DBG(MODULE_TAG, "Selected reading plan path = '%s'", path.c_str());
-          config_.readingPlanPath = path;
-        }
-        requestUpdate();
-      };
-      startActivityForResult(std::move(browser), handler);
-      break;
-    }
-    case BibleMenuActivity::READING_DAY: {
-      LOG_INF(MODULE_TAG, "Selected reading day");
-      auto activity =
-          std::make_unique<ReadingPlanActivity>(bible_, config_, renderer, mappedInput, config_.readingPlanPath, false);
-      auto handler = [this](const ActivityResult& result) {
-        LOG_INF(MODULE_TAG, "Selected reading day, opened?");
-        requestUpdate();
-      };
-      startActivityForResult(std::move(activity), handler);
+      if (readingPlanConfig_.readingPlanPath.empty() || readingPlanConfig_.readingPlanDay == 0) {
+        const std::filesystem::path modulePath{bookPath};
+        const auto parent = modulePath.parent_path();
+        auto browser =
+            std::make_unique<FileBrowserActivity>(renderer, mappedInput, parent, FileBrowserActivity::Mode::Bibles);
+        auto handler = [this, openReadingPlan](const ActivityResult& result) {
+          if (!result.isCancelled) {
+            const auto& [path] = std::get<FilePathResult>(result.data);
+            LOG_DBG(MODULE_TAG, "Selected reading plan path = '%s'", path.c_str());
+            readingPlanConfig_.readingPlanPath = path;
+            readingPlanConfig_.readingPlanDay = 1;
+            openReadingPlan(path);
+          }
+          requestUpdate();
+        };
+        startActivityForResult(std::move(browser), handler);
+      } else {
+        openReadingPlan(readingPlanConfig_.readingPlanPath);
+      }
       break;
     }
   }

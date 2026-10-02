@@ -28,6 +28,11 @@ std::string ReadingPlanActivity::getLanguage() const { return std::string(bible_
 bool ReadingPlanActivity::isAtEndOfBook() const { return false; }
 
 bool ReadingPlanActivity::loadBook() {
+  if (bookPath.empty()) {
+    bookPath = config_.readingPlanPath;
+    LOG_INF(MODULE_TAG, "No module path provided, using last opened: %s", bookPath.c_str());
+  }
+
   LOG_DBG(MODULE_TAG, "ReadingPlanActivity::loadBook '%s'", bookPath.c_str());
   readingPlan_ = std::make_unique<BibleToolbox::ReadingPlan>(bookPath, HAL_VFS_NAME);
   if (!readingPlan_) {
@@ -41,10 +46,10 @@ bool ReadingPlanActivity::loadBook() {
   }
   dailyNavigator_.configureWith("Daily Reading", readingPlan_->daysCount());
   if (!chapterNavigator_.setPosition(
-          BibleToolbox::BookPosition{.book = 0, .chapter = config_.readingPlanDay, .page = 0})) {
+          BibleToolbox::BookPosition{.book = 0, .chapter = config_.readingPlanDay, .page = config_.pageNumber})) {
     LOG_INF(MODULE_TAG, "Loaded book position is out of bounds!");
   }
-  return loadChapter(TargetPage{});
+  return loadChapter(TargetPage{config_.pageNumber});
 }
 
 bool ReadingPlanActivity::loadChapter(const StartPagePosition startPagePosition) {
@@ -65,6 +70,9 @@ void ReadingPlanActivity::onPositionChanged(const BibleToolbox::BookPosition old
                                             const BibleToolbox::PositionChange changes) {
   LOG_INF(MODULE_TAG, "Book position changed from %d:%d:%d to %d:%d:%d", oldPosition.book, oldPosition.chapter,
           oldPosition.page, newPosition.book, newPosition.chapter, newPosition.page);
+  if (BibleToolbox::hasChange(changes, BibleToolbox::PositionChange::Page)) {
+    config_.pageNumber = newPosition.page;
+  }
   if (BibleToolbox::hasChange(changes, BibleToolbox::PositionChange::Chapter)) {
     config_.readingPlanDay = newPosition.chapter;
     StartPagePosition pageNavigation = TargetPage{newPosition.page};
@@ -81,4 +89,11 @@ void ReadingPlanActivity::loop() {
   if (mappedInput.wasReleased(MappedInputManager::Button::Confirm)) {
     LOG_DBG(MODULE_TAG, "ReadingPlanActivity: Confirm");
   }
+}
+
+bool ReadingPlanActivity::handleBackNavigation() {
+  ActivityResult result;
+  result.isCancelled = true;
+  setResult(std::move(result));
+  return true;
 }

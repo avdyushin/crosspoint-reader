@@ -4,9 +4,11 @@
 #include "BibleConfigStore.h"
 #include "BibleMenuActivity.h"
 #include "BibleNavigator.h"
+#include "ReadingPlanConfigStore.h"
 
 class BibleActivity final : public BaseBibleActivity<BibleToolbox::BibleNavigator> {
   BibleConfigStore config_{};
+  ReadingPlanConfigStore readingPlanConfig_{};
   BibleToolbox::BibleNavigator bibleNavigator_{};
 
   void handleMenuAction(BibleMenuActivity::MenuItem menuItem);

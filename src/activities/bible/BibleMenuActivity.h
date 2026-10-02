@@ -18,7 +18,6 @@ class BibleMenuActivity final : public UiListActivity {
     BOOK = 1,
     CHAPTER = 2,
     READING_PLAN = 3,
-    READING_DAY = 4,
   };
 
   explicit BibleMenuActivity(GfxRenderer& renderer, MappedInputManager& mappedInputManager, Config config)
@@ -29,11 +28,12 @@ class BibleMenuActivity final : public UiListActivity {
 
  private:
   Config config_;
-  std::array<freeink::ui::ListItem, 5> rowItems_{freeink::ui::ListItem{.label = "Select Module", .actionValue = 0},
-                                                 freeink::ui::ListItem{.label = "Select Book", .actionValue = 1},
-                                                 freeink::ui::ListItem{.label = "Select Chapter", .actionValue = 2},
-                                                 freeink::ui::ListItem{.label = "Reading Plan", .actionValue = 3},
-                                                 freeink::ui::ListItem{.label = "Reading Day", .actionValue = 4}};
+  std::array<freeink::ui::ListItem, 4> rowItems_{
+      freeink::ui::ListItem{.label = "Select Module", .actionValue = 0},
+      freeink::ui::ListItem{.label = "Select Book", .actionValue = 1},
+      freeink::ui::ListItem{.label = "Select Chapter", .actionValue = 2},
+      freeink::ui::ListItem{.label = "Open Reading Plan", .actionValue = 3},
+  };
 
  protected:
   int listCount() const override { return static_cast<int>(rowItems_.size()); }

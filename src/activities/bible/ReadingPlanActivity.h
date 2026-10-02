@@ -4,14 +4,15 @@
 #include "BibleConfigStore.h"
 #include "DailyNavigator.h"
 #include "ReadingPlan.h"
+#include "ReadingPlanConfigStore.h"
 
 class ReadingPlanActivity final : public BaseBibleActivity<BibleToolbox::DailyNavigator> {
   BibleToolbox::DailyNavigator dailyNavigator_{};
+  ReadingPlanConfigStore& config_;
 
  protected:
   std::shared_ptr<BibleToolbox::Bible> bible_;
   std::unique_ptr<BibleToolbox::ReadingPlan> readingPlan_;
-  BibleConfigStore& config_;
 
   std::filesystem::path getCacheDir() const override;
   std::string getCacheFileName() const override;
@@ -25,15 +26,18 @@ class ReadingPlanActivity final : public BaseBibleActivity<BibleToolbox::DailyNa
   void formatChapter(serialization::BufferedFileWriterIterator iter) override;
   void onPositionChanged(BibleToolbox::BookPosition oldPosition, BibleToolbox::BookPosition newPosition,
                          BibleToolbox::PositionChange changes) override;
+  bool handleBackNavigation();
 
  public:
-  ReadingPlanActivity(const std::shared_ptr<BibleToolbox::Bible>& bible, BibleConfigStore& config,
+  ReadingPlanActivity(const std::shared_ptr<BibleToolbox::Bible>& bible, ReadingPlanConfigStore& config,
                       GfxRenderer& renderer, MappedInputManager& mappedInput, std::string bookPath,
                       const bool allowFastInitialRefresh)
       : BaseBibleActivity(BibleToolbox::PageNavigator{dailyNavigator_}, renderer, mappedInput, std::move(bookPath),
                           allowFastInitialRefresh),
         bible_(bible),
         config_(config) {}
+
+  ~ReadingPlanActivity() override { auto _ = config_.saveToFile(); }
 
   void loop() override;
 };

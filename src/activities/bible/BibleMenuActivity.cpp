@@ -31,13 +31,18 @@ void BibleMenuActivity::buildScreen(UiScreen& screen) {
   props.labelText.maxLines = 2;
 
   const std::string chapter = std::to_string(config_.currentChapterNumber);
-  const std::string day = std::to_string(config_.readingDay);
+  std::string plan;
+
+  if (config_.readingDay != 0) {
+    plan = std::format("{}@{}", config_.readingPlanId, config_.readingDay);
+  } else {
+    plan = "Select...";
+  }
 
   rowItems_[MODULE].value = config_.currentModuleId.data();
   rowItems_[BOOK].value = config_.currentBookName.data();
   rowItems_[CHAPTER].value = chapter.c_str();
-  rowItems_[READING_PLAN].value = config_.readingPlanId.data();
-  rowItems_[READING_DAY].value = day.c_str();
+  rowItems_[READING_PLAN].value = plan.data();
 
   syncListViewport(screen, props);
   screen.list(props);
