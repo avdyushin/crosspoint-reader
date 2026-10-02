@@ -5,7 +5,6 @@
 #include <string_view>
 
 #include "Connection.h"
-#include "Logging.h"
 
 namespace {
 auto to_lower_view = [](std::string_view str) {
@@ -91,14 +90,9 @@ Bible::Bible(const std::filesystem::path& path, const char* vfs) {
     chapterVersesBetween_.prepare(connection_.get(), verses_between);
 
     constexpr auto verses_by_location = R"SQL(
-        -- 1. Tail end of the start chapter
-        SELECT chapter, verse, text FROM verses WHERE book_number = ? AND chapter = ? AND verse >= ?
-        UNION ALL
-        -- 2. Full chapters in between
-        SELECT chapter, verse, text FROM verses WHERE book_number = ? AND chapter > ? AND chapter < ?
-        UNION ALL
-        -- 3. Head end of the final chapter
-        SELECT chapter, verse, text FROM verses WHERE book_number = ? AND chapter = ? AND verse <= ?
+        SELECT chapter, verse, text
+        FROM verses
+        WHERE book_number = ? AND (chapter > ? OR (chapter = ? AND verse >= ?)) AND (chapter < ? OR (chapter = ? AND verse <= ?))
         ORDER BY chapter, verse;
       )SQL";
     locationStatement_.prepare(connection_.get(), verses_by_location);
@@ -183,17 +177,11 @@ std::vector<Verse> Bible::versesInChapter(const bookNumber book, const chapterNu
                                           const bool excludeStrongsNumbers) const {
   std::vector<Verse> verses;
   chapterVersesBetween_.reset();
-  {
-    auto _ = chapterVersesBetween_.bind(1, book);
-  }
-  {
-    auto _ = chapterVersesBetween_.bind(2, chapter);
-  }
-  {
-    auto _ = chapterVersesBetween_.bind(3, startVerse);
-  }
-  {
-    auto _ = chapterVersesBetween_.bind(4, endVerse);
+  const std::array<int, 4> values{book, chapter, startVerse, endVerse};
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (!chapterVersesBetween_.bind(static_cast<int>(i + 1), values[i])) {
+      return {};
+    }
   }
   auto transform = [excludeStrongsNumbers](const std::string_view text) {
     std::string result{text};
@@ -216,11 +204,11 @@ std::vector<Verse> Bible::versesInChapter(const bookNumber book, const chapterNu
                                           const bool excludeStrongsNumbers = true) const {
   std::vector<Verse> verses;
   chapterStatement_.reset();
-  {
-    auto _ = chapterStatement_.bind(1, book);
-  }
-  {
-    auto _ = chapterStatement_.bind(2, chapter);
+  const std::array<int, 2> values{book, chapter};
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (!chapterStatement_.bind(static_cast<int>(i + 1), values[i])) {
+      return {};
+    }
   }
   auto transform = [excludeStrongsNumbers](const std::string_view text) {
     std::string result{text};
@@ -252,12 +240,15 @@ std::vector<Verse> Bible::versesByLocation(const Location& location, const bool 
   }
   std::vector<Verse> verses;
   locationStatement_.reset();
-  const std::array<int, 9> values{location.book, location.range.startChapter, location.range.startVerse,
-                                  location.book, location.range.startChapter, location.range.endChapter,
-                                  location.book, location.range.endChapter,   location.range.endVerse};
+  const std::array<int, 7> values{location.book,
+                                  location.range.startChapter,
+                                  location.range.startChapter,
+                                  location.range.startVerse,
+                                  location.range.endChapter,
+                                  location.range.endChapter,
+                                  location.range.endVerse};
   for (std::size_t i = 0; i < values.size(); ++i) {
     if (!locationStatement_.bind(static_cast<int>(i + 1), values[i])) {
-      LOG_DBG("Bible", "Failed to bind %d column!", i + 1);
       return {};
     }
   }
