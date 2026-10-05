@@ -47,7 +47,7 @@ void BibleMenuActivity::buildScreen(UiScreen& screen) {
   screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
 
   freeink::ui::ListProps listProps{
-      .items = &rowItems_[0],
+      .items = rowItems_.data(),
       .count = listCount(),
       .action = ACTION_ROW,
       .inputMask = freeink::ui::InputTouch,
@@ -59,28 +59,30 @@ void BibleMenuActivity::buildScreen(UiScreen& screen) {
   rowItems_[MODULE].value = config_.module().data();
 
   if (config_.hasModule()) {
-    const std::string chapter = std::to_string(config_.currentChapterNumber);
+    chapterValue_ = std::to_string(config_.currentChapterNumber);
     rowItems_[BOOK].value = config_.currentBookName.data();
-    rowItems_[CHAPTER].value = chapter.data();
+    rowItems_[CHAPTER].value = chapterValue_.data();
     rowItems_[READING_PLAN].value = config_.readingPlan().data();
   }
 
   if (config_.hasReadingPlan()) {
-    const auto day = std::format("Day {}", config_.readingPlanDay);
-    rowItems_[DAILY_READING].value = day.data();
+    dayValue_ = std::format("Day {}", config_.readingPlanDay);
+    rowItems_[DAILY_READING].value = dayValue_.data();
   }
 
   syncListViewport(screen, listProps);
   screen.list(listProps);
-  // screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
-  //
-  // if (activeNav().selected == MODULE) {
-  //   const auto style = screen.theme().smallText;
-  //   const int16_t lh = screen.target().lineHeight(style.font);
-  //   const freeink::ui::Rect desc = screen.takeBottom(lh, pad);
-  //   screen.target().text(desc.inset(freeink::ui::Insets{.top = 0, .right = pad, .bottom = 0, .left = pad}),
-  //                        config_.moduleDescription.c_str(), style);
-  // }
+  screen.spacer(static_cast<int16_t>(metrics.verticalSpacing));
+
+  if (activeNav().selected == MODULE) {
+    auto style = screen.theme().smallText;
+    style.maxLines = 2;
+    const int16_t lineHeight = screen.target().lineHeight(style.font);
+    constexpr int16_t bottomGap = 8;
+    const freeink::ui::Rect desc = screen.takeBottom(static_cast<int16_t>(2 * lineHeight + bottomGap), 0);
+    const auto rect = desc.inset(freeink::ui::Insets{.top = 0, .right = pad, .bottom = bottomGap, .left = pad});
+    screen.target().text(rect, config_.moduleDescription.c_str(), style);
+  }
 }
 
 void BibleMenuActivity::drawChrome() {

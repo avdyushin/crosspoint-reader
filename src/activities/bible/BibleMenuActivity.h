@@ -39,6 +39,8 @@ class BibleMenuActivity final : public UiListActivity {
   bool handleHomeGesture() override;
 
  private:
+  std::string chapterValue_;
+  std::string dayValue_;
   Config config_;
   std::array<freeink::ui::ListItem, 5> rowItems_{
       freeink::ui::ListItem{.label = "Bible Module", .actionValue = 0},
