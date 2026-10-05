@@ -85,10 +85,6 @@ Bible::Bible(const std::filesystem::path& path, const char* vfs) {
       return;
     }
 
-    constexpr auto verses_between =
-        "SELECT verse, text FROM verses WHERE book_number = ? AND chapter = ? AND verse BETWEEN ? AND ?;";
-    chapterVersesBetween_.prepare(connection_.get(), verses_between);
-
     constexpr auto verses_by_location = R"SQL(
         SELECT chapter, verse, text
         FROM verses
@@ -173,34 +169,6 @@ BibleInfo Bible::fetchInfo(const std::filesystem::path& path) const {
 }
 
 std::vector<Verse> Bible::versesInChapter(const bookNumber book, const chapterNumber chapter,
-                                          const verseNumber startVerse, const verseNumber endVerse,
-                                          const bool excludeStrongsNumbers) const {
-  std::vector<Verse> verses;
-  chapterVersesBetween_.reset();
-  const std::array<int, 4> values{book, chapter, startVerse, endVerse};
-  for (std::size_t i = 0; i < values.size(); ++i) {
-    if (!chapterVersesBetween_.bind(static_cast<int>(i + 1), values[i])) {
-      return {};
-    }
-  }
-  auto transform = [excludeStrongsNumbers](const std::string_view text) {
-    std::string result{text};
-    process_verse_text_in_place(result, excludeStrongsNumbers);
-    return result;
-  };
-  while (chapterVersesBetween_.step() == SQLITE_ROW) {
-    const auto verse = Verse{
-        .book = book,
-        .chapter = static_cast<chapterNumber>(chapter),
-        .verse = static_cast<verseNumber>(chapterVersesBetween_.getInt(0)),
-        .text = transform(chapterVersesBetween_.getString(1)),
-    };
-    verses.push_back(verse);
-  }
-  return verses;
-}
-
-std::vector<Verse> Bible::versesInChapter(const bookNumber book, const chapterNumber chapter,
                                           const bool excludeStrongsNumbers = true) const {
   std::vector<Verse> verses;
   chapterStatement_.reset();
@@ -231,12 +199,8 @@ std::vector<Verse> Bible::versesByLocation(const Location& location, const bool 
   if (location.range.startChapter > location.range.endChapter) {
     return {};
   }
-  if (location.range.startChapter == location.range.endChapter) {
-    if (location.range.startVerse > location.range.endVerse) {
-      return {};
-    }
-    return versesInChapter(location.book, location.range.startChapter, location.range.startVerse,
-                           location.range.endVerse, excludeStrongsNumbers);
+  if (location.range.startChapter == location.range.endChapter && location.range.startVerse > location.range.endVerse) {
+    return {};
   }
   std::vector<Verse> verses;
   locationStatement_.reset();

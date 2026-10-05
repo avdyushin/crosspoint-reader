@@ -16,16 +16,12 @@ class Bible {
   std::vector<Book> books_;
   Connection connection_ = Connection();
   Statement chapterStatement_ = Statement();
-  Statement chapterVersesBetween_ = Statement();
   Statement locationStatement_ = Statement();
   BibleInfo info_;
 
   [[nodiscard]] std::vector<Book> fetchBooks() const;
 
   [[nodiscard]] BibleInfo fetchInfo(const std::filesystem::path& path) const;
-
-  [[nodiscard]] std::vector<Verse> versesInChapter(bookNumber book, chapterNumber chapter, verseNumber startVerse,
-                                                   verseNumber endVerse, bool excludeStrongsNumbers) const;
 
  public:
   explicit Bible(const std::filesystem::path& path, const char* vfs);

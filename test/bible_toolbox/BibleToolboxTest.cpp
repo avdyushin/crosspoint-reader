@@ -204,6 +204,19 @@ TEST_F(BibleToolboxTest, SingleChapterRangeReturnsOnlyBoundedVerses) {
   EXPECT_EQ(result.back().verse, 15);
 }
 
+TEST_F(BibleToolboxTest, SingleVerseReturnsOnlyBoundedVerses) {
+  // Test case: Genesis 1:12 to 1:12
+  // Ensures the multi-chapter OR logic doesn't leak out all other verses in Ch 1.
+  Location loc{.book = GENESIS_BOOK_NUMBER,
+               .range = {.startChapter = 1, .startVerse = 12, .endChapter = 1, .endVerse = 12}};
+
+  auto result = bible->versesByLocation(loc, true);
+
+  ASSERT_EQ(result.size(), 1);
+  EXPECT_EQ(result.front().chapter, 1);
+  EXPECT_EQ(result.front().verse, 12);
+}
+
 TEST_F(BibleToolboxTest, AdjacentChaptersRangeEvaluatesCorrectly) {
   // Test case: Genesis 1:30 to 2:2
   // Ensures the "middle chapters" logic (1 < chapter < 2) safely finds nothing
